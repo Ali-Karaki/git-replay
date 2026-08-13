@@ -2,8 +2,8 @@
 // boundaries — the navigation invariants the replay experience depends on.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { frameCommit, frameCount, frameSha, useReplay } from "./replay";
 import type { CommitMeta, ReplayRange } from "../lib/types";
+import { frameCommit, frameCount, frameSha, useReplay } from "./replay";
 
 function meta(sha: string, parents: string[] = [], subject = "subject"): CommitMeta {
   return {

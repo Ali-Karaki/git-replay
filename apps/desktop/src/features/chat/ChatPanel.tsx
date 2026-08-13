@@ -3,14 +3,13 @@
 // the user's own; requests go directly to Claude. Nothing is sent unless the
 // user asks a question (spec 37/43).
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useChat } from "../../stores/chat";
-import { useReplay } from "../../stores/replay";
-import { renderMarkdown } from "../../lib/markdown";
-import { frameSha } from "../../stores/replay";
-import { CHAT_PROVIDERS, type ChatEvent } from "../../lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BranchIcon, CloseIcon } from "../../components/Icons";
+import { Markdown } from "../../components/Markdown";
+import { CHAT_PROVIDERS, type ChatEvent } from "../../lib/types";
+import { useChat } from "../../stores/chat";
+import { frameSha, useReplay } from "../../stores/replay";
 
 const MODEL_SUGGESTIONS: Record<string, string[]> = {
   anthropic: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
@@ -40,9 +39,8 @@ export function ChatPanel() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const providerDef = CHAT_PROVIDERS.find((p) => p.id === providerInput);
-  const fixedModels = providerInput === "anthropic" || providerInput === "deepseek"
-    ? MODEL_SUGGESTIONS[providerInput]
-    : null;
+  const fixedModels =
+    providerInput === "anthropic" || providerInput === "deepseek" ? MODEL_SUGGESTIONS[providerInput] : null;
 
   // Stream events from the engine.
   useEffect(() => {
@@ -58,6 +56,7 @@ export function ChatPanel() {
 
   // Autoscroll while streaming.
   useEffect(() => {
+    if (messages.length === 0) return;
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
@@ -80,7 +79,7 @@ export function ChatPanel() {
     } else {
       chips.push("base snapshot");
     }
-    if (selectedFile) chips.push(selectedFile.split("/").pop()!);
+    if (selectedFile) chips.push(selectedFile.split("/").pop() ?? selectedFile);
     return chips;
   }, [range, index, selectedFile, hasWorkingTree]);
 
@@ -112,6 +111,7 @@ export function ChatPanel() {
         </span>
         <div className="chat-header-actions">
           <button
+            type="button"
             className={`btn-icon ${settingsOpen ? "active" : ""}`}
             onClick={() => setSettingsOpen(!settingsOpen)}
             title="Chat settings (API key + model)"
@@ -119,7 +119,13 @@ export function ChatPanel() {
           >
             ⚙
           </button>
-          <button className="btn-icon" onClick={() => setOpen(false)} title="Close chat" aria-label="Close chat">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => setOpen(false)}
+            title="Close chat"
+            aria-label="Close chat"
+          >
             <CloseIcon size={14} />
           </button>
         </div>
@@ -128,8 +134,8 @@ export function ChatPanel() {
       {settingsOpen && (
         <div className="chat-settings">
           <p className="dim">
-            Your API key is stored locally in the OS config directory. Requests go directly from
-            this app to the provider you pick — nothing else is sent, and only when you ask.
+            Your API key is stored locally in the OS config directory. Requests go directly from this app to the
+            provider you pick — nothing else is sent, and only when you ask.
           </p>
           <label>
             Provider
@@ -150,35 +156,43 @@ export function ChatPanel() {
               }}
             >
               {CHAT_PROVIDERS.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
               ))}
             </select>
           </label>
-          <label>
-            Model
-            {fixedModels ? (
-              <select className="select" value={modelInput} onChange={(e) => setModelInput(e.target.value)}>
-                {fixedModels.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                list="chat-models"
-                value={modelInput}
-                onChange={(e) => setModelInput(e.target.value)}
-                placeholder={providerDef?.defaultModel || "model id"}
-                autoComplete="off"
-              />
-            )}
-            {!fixedModels && (
-              <datalist id="chat-models">
-                {(MODEL_SUGGESTIONS[providerInput] ?? []).map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
-            )}
-          </label>
+          <label htmlFor="chat-model-input">Model</label>
+          {fixedModels ? (
+            <select
+              id="chat-model-input"
+              className="select"
+              value={modelInput}
+              onChange={(e) => setModelInput(e.target.value)}
+            >
+              {fixedModels.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="chat-model-input"
+              list="chat-models"
+              value={modelInput}
+              onChange={(e) => setModelInput(e.target.value)}
+              placeholder={providerDef?.defaultModel || "model id"}
+              autoComplete="off"
+            />
+          )}
+          {!fixedModels && (
+            <datalist id="chat-models">
+              {(MODEL_SUGGESTIONS[providerInput] ?? []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          )}
           {(providerInput === "custom_openai" || providerInput === "custom_anthropic") && (
             <label>
               Base URL
@@ -205,21 +219,27 @@ export function ChatPanel() {
             />
           </label>
           <div className="chat-settings-actions">
-            <button className="btn btn-primary" onClick={() => void saveSettings()}>
+            <button type="button" className="btn btn-primary" onClick={() => void saveSettings()}>
               Save
             </button>
             {hasKey && (
               <button
+                type="button"
                 className="btn"
                 onClick={() => {
-                  void useChat.getState().clearKey().then(() => setSettingsNote("Key removed"));
+                  void useChat
+                    .getState()
+                    .clearKey()
+                    .then(() => setSettingsNote("Key removed"));
                 }}
               >
                 Remove key
               </button>
             )}
           </div>
-          {settingsNote && <div className={settingsNote.startsWith("Could") ? "chat-error" : "settings-note"}>{settingsNote}</div>}
+          {settingsNote && (
+            <div className={settingsNote.startsWith("Could") ? "chat-error" : "settings-note"}>{settingsNote}</div>
+          )}
         </div>
       )}
 
@@ -228,24 +248,26 @@ export function ChatPanel() {
           <div className="chat-empty">
             <div className="empty-title">Ask anything about this code</div>
             <div className="empty-hint">
-              Questions are answered with the current commit's changes, the selected file's diff, and the replay
-              range as context — e.g. “why was this changed?” or “how did this file evolve?”
+              Questions are answered with the current commit's changes, the selected file's diff, and the replay range
+              as context — e.g. “why was this changed?” or “how did this file evolve?”
             </div>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`chat-msg ${m.role}`}>
+        {messages.map((m) => (
+          <div key={m.id} className={`chat-msg ${m.role}`}>
             {m.role === "assistant" && m.error ? (
               <div className="chat-error">{m.content}</div>
             ) : m.role === "assistant" ? (
-              <div className="chat-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content || (sending ? "…" : "")) }} />
+              <div className="chat-md">
+                <Markdown src={m.content || (sending ? "…" : "")} />
+              </div>
             ) : (
               <div className="chat-user-text">{m.content}</div>
             )}
           </div>
         ))}
         {!hasKey && !settingsOpen && (
-          <button className="chat-key-cta" onClick={() => setSettingsOpen(true)}>
+          <button type="button" className="chat-key-cta" onClick={() => setSettingsOpen(true)}>
             Add your API key to start asking →
           </button>
         )}
@@ -255,7 +277,9 @@ export function ChatPanel() {
         {contextChips.length > 0 && (
           <div className="chat-context">
             {contextChips.map((c) => (
-              <span key={c} className="chat-context-chip" title="Attached as context to your question">{c}</span>
+              <span key={c} className="chat-context-chip" title="Attached as context to your question">
+                {c}
+              </span>
             ))}
           </div>
         )}
@@ -263,7 +287,11 @@ export function ChatPanel() {
           ref={inputRef}
           className="chat-input"
           rows={2}
-          placeholder={hasKey ? "Ask about this commit, diff, or file… (Enter to send, Shift+Enter for a new line)" : "Add your API key in the settings (gear icon) before asking"}
+          placeholder={
+            hasKey
+              ? "Ask about this commit, diff, or file… (Enter to send, Shift+Enter for a new line)"
+              : "Add your API key in the settings (gear icon) before asking"
+          }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -274,10 +302,20 @@ export function ChatPanel() {
           }}
         />
         <div className="chat-input-actions">
-          <button className="btn" onClick={() => void useChat.getState().clearMessages()} disabled={messages.length === 0}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void useChat.getState().clearMessages()}
+            disabled={messages.length === 0}
+          >
             Clear
           </button>
-          <button className="btn btn-primary" onClick={() => void send()} disabled={sending || !input.trim() || !hasKey}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void send()}
+            disabled={sending || !input.trim() || !hasKey}
+          >
             {!hasKey ? "Key needed" : sending ? "Thinking…" : "Send"}
           </button>
         </div>

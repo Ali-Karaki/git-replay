@@ -3,14 +3,12 @@
 // repository (spec 9).
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../lib/ipc";
-import { useReplay } from "../../stores/replay";
-import { formatDateTime, shortSha } from "../../lib/format";
-import type { CommitMeta, PrReplay } from "../../lib/types";
-import {
-  BranchIcon, ClockIcon, FolderOpenIcon, PrIcon, SwapIcon, TagIcon,
-} from "../../components/Icons";
+import { BranchIcon, ClockIcon, FolderOpenIcon, PrIcon, SwapIcon, TagIcon } from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
+import { formatDateTime, shortSha } from "../../lib/format";
+import { api } from "../../lib/ipc";
+import type { CommitMeta, PrReplay } from "../../lib/types";
+import { useReplay } from "../../stores/replay";
 
 type Mode = "branch" | "range" | "tags" | "pr" | "entire";
 
@@ -24,11 +22,37 @@ interface ModeCard {
 }
 
 const MODE_CARDS: ModeCard[] = [
-  { id: "branch", icon: BranchIcon, title: "Watch a branch", desc: "See how a branch grew — where it started to where it is now" },
-  { id: "range", icon: SwapIcon, title: "Watch a range of commits", desc: "Pick any start and end — commits, tags, or SHAs" },
-  { id: "tags", icon: TagIcon, title: "Watch between releases", desc: "How the project changed from one tag to the next" },
-  { id: "pr", icon: PrIcon, title: "Watch a pull request", desc: "Replay a GitHub PR, including its force-push history" },
-  { id: "entire", icon: FolderOpenIcon, title: "Watch everything", desc: "The full story — initial commit to HEAD", wide: true },
+  {
+    id: "branch",
+    icon: BranchIcon,
+    title: "Watch a branch",
+    desc: "See how a branch grew — where it started to where it is now",
+  },
+  {
+    id: "range",
+    icon: SwapIcon,
+    title: "Watch a range of commits",
+    desc: "Pick any start and end — commits, tags, or SHAs",
+  },
+  {
+    id: "tags",
+    icon: TagIcon,
+    title: "Watch between releases",
+    desc: "How the project changed from one tag to the next",
+  },
+  {
+    id: "pr",
+    icon: PrIcon,
+    title: "Watch a pull request",
+    desc: "Replay a GitHub PR, including its force-push history",
+  },
+  {
+    id: "entire",
+    icon: FolderOpenIcon,
+    title: "Watch everything",
+    desc: "The full story — initial commit to HEAD",
+    wide: true,
+  },
 ];
 
 /** The mode that actually yields a replay for the given repo shape: a
@@ -80,7 +104,10 @@ export function RangeSetup() {
       setFromTag(tags[0].name);
       setToTag(tags[tags.length - 1].name);
     }
-    api.getRecentCommits(repo.id, 200).then(setRecent).catch(() => undefined);
+    api
+      .getRecentCommits(repo.id, 200)
+      .then(setRecent)
+      .catch(() => undefined);
   }, [repo, branches, tags]);
 
   const refOptions = useMemo(() => {
@@ -153,18 +180,23 @@ export function RangeSetup() {
   return (
     <div className="range-setup">
       <div className="range-card">
-        <h1>Replay <span className="dim">{repo.path}</span></h1>
+        <h1>
+          Replay <span className="dim">{repo.path}</span>
+        </h1>
 
         <div className="range-mode-cards" role="tablist">
           {MODE_CARDS.map((m) => (
             <button
+              type="button"
               key={m.id}
               role="tab"
               aria-selected={mode === m.id}
               className={`range-mode-card ${mode === m.id ? "active" : ""} ${m.wide ? "wide" : ""}`}
               onClick={() => setMode(m.id)}
             >
-              <span className="range-mode-icon"><m.icon size={16} /></span>
+              <span className="range-mode-icon">
+                <m.icon size={16} />
+              </span>
               <span>
                 <span className="range-mode-title">{m.title}</span>
                 <span className="range-mode-desc">{m.desc}</span>
@@ -180,7 +212,9 @@ export function RangeSetup() {
               <select value={base} onChange={(e) => setBase(e.target.value)}>
                 <option value="">(none)</option>
                 {refOptions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
                 ))}
               </select>
             </label>
@@ -190,7 +224,9 @@ export function RangeSetup() {
               <select value={head} onChange={(e) => setHead(e.target.value)}>
                 <option value="">(none)</option>
                 {refOptions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
                 ))}
               </select>
             </label>
@@ -207,8 +243,8 @@ export function RangeSetup() {
             </details>
             {base && base === head && (
               <div className="range-hint warn">
-                From and To are the same branch — this replay would be empty. Pick a different branch,
-                open <strong>More options</strong> and turn off “start at the merge base”, or use Watch everything.
+                From and To are the same branch — this replay would be empty. Pick a different branch, open{" "}
+                <strong>More options</strong> and turn off “start at the merge base”, or use Watch everything.
               </div>
             )}
           </div>
@@ -218,12 +254,22 @@ export function RangeSetup() {
           <div className="range-form">
             <label>
               From
-              <input list="range-commits" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="sha / branch / tag" />
+              <input
+                list="range-commits"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                placeholder="sha / branch / tag"
+              />
             </label>
             <span className="range-arrow dim">→</span>
             <label>
               To
-              <input list="range-commits" value={to} onChange={(e) => setTo(e.target.value)} placeholder="sha / branch / tag" />
+              <input
+                list="range-commits"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="sha / branch / tag"
+              />
             </label>
             <datalist id="range-commits">
               {commitOptions.map((c) => (
@@ -244,7 +290,9 @@ export function RangeSetup() {
                   From
                   <select value={fromTag} onChange={(e) => setFromTag(e.target.value)}>
                     {tags.map((t) => (
-                      <option key={t.name} value={t.name}>{t.name}</option>
+                      <option key={t.name} value={t.name}>
+                        {t.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -253,7 +301,9 @@ export function RangeSetup() {
                   To
                   <select value={toTag} onChange={(e) => setToTag(e.target.value)}>
                     {tags.map((t) => (
-                      <option key={t.name} value={t.name}>{t.name}</option>
+                      <option key={t.name} value={t.name}>
+                        {t.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -274,7 +324,7 @@ export function RangeSetup() {
                 onKeyDown={(e) => e.key === "Enter" && void loadPr()}
               />
             </label>
-            <button className="btn" onClick={() => void loadPr()} disabled={busy || !prInput.trim()}>
+            <button type="button" className="btn" onClick={() => void loadPr()} disabled={busy || !prInput.trim()}>
               Load
             </button>
             {prMeta && (
@@ -282,7 +332,8 @@ export function RangeSetup() {
                 <div className="pr-meta">
                   <span className="pr-title">{prMeta.title}</span>
                   <span className="dim">
-                    base {shortSha(prMeta.range.baseSha)} · head {shortSha(prMeta.range.headSha)} · {prMeta.range.commits.length} commits
+                    base {shortSha(prMeta.range.baseSha)} · head {shortSha(prMeta.range.headSha)} ·{" "}
+                    {prMeta.range.commits.length} commits
                   </span>
                 </div>
                 {prMeta.versions.length > 1 && (
@@ -303,7 +354,8 @@ export function RangeSetup() {
             )}
             {prError && <div className="range-error">{prError}</div>}
             <div className="dim range-hint">
-              Uses the <code>gh</code> CLI when available (private repos + force-push history); public repos work via git fetch alone.
+              Uses the <code>gh</code> CLI when available (private repos + force-push history); public repos work via
+              git fetch alone.
             </div>
           </div>
         )}
@@ -321,15 +373,29 @@ export function RangeSetup() {
         {summary && <div className="range-summary">{summary}</div>}
 
         <div className="range-actions">
-          <button className="btn btn-primary" onClick={start} disabled={busy || (mode === "pr" && !prMeta)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={start}
+            disabled={busy || (mode === "pr" && !prMeta)}
+          >
             {busy ? "Resolving…" : "Start watching"}
           </button>
-          <button className="btn" onClick={() => set({ repo: null, range: null, error: null, errorDetail: null })}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => set({ repo: null, range: null, error: null, errorDetail: null })}
+          >
             Open another repository
           </button>
           {tags.length > 0 && mode !== "tags" && (
             <span className="dim range-tags">
-              <TagIcon size={12} /> {tags.slice(0, 8).map((t) => t.name).join(", ")}{tags.length > 8 ? "…" : ""}
+              <TagIcon size={12} />{" "}
+              {tags
+                .slice(0, 8)
+                .map((t) => t.name)
+                .join(", ")}
+              {tags.length > 8 ? "…" : ""}
             </span>
           )}
           {mode === "branch" && (

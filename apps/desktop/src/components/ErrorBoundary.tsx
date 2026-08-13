@@ -28,10 +28,11 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="dim">Git Replay hit an unexpected error while rendering.</p>
           <pre className="error-detail">{String(this.state.error?.stack ?? this.state.error)}</pre>
           <div className="crash-actions">
-            <button className="btn btn-primary" onClick={() => window.location.reload()}>
+            <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
               Reload
             </button>
             <button
+              type="button"
               className="btn"
               onClick={() => {
                 this.setState({ error: null });

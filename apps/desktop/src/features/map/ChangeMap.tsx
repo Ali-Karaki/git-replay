@@ -5,8 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCommitDetail } from "../../lib/dataCaches";
 import { formatDateTime, shortSha } from "../../lib/format";
-import { frameCount, useReplay } from "../../stores/replay";
 import type { CommitDetail, FileChange } from "../../lib/types";
+import { frameCount, useReplay } from "../../stores/replay";
 
 const ROW_H = 15;
 const LABEL_W = 230;
@@ -23,13 +23,19 @@ function statusColor(status: string, mode: string): string {
   const root = document.documentElement;
   const v = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
   switch (status) {
-    case "added": return v("--add");
-    case "modified": return mode === "dark" ? v("--accent") : v("--accent");
-    case "deleted": return v("--del");
+    case "added":
+      return v("--add");
+    case "modified":
+      return mode === "dark" ? v("--accent") : v("--accent");
+    case "deleted":
+      return v("--del");
     case "renamed":
-    case "copied": return v("--rename");
-    case "untracked": return "#0ea5a5";
-    default: return v("--text-faint");
+    case "copied":
+      return v("--rename");
+    case "untracked":
+      return "#0ea5a5";
+    default:
+      return v("--text-faint");
   }
 }
 
@@ -43,7 +49,7 @@ export function ChangeMap() {
   const selectedFile = useReplay((s) => s.selectedFile);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLButtonElement | null>(null);
   const [details, setDetails] = useState<Map<string, CommitDetail>>(new Map());
   const [progress, setProgress] = useState(0);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -65,15 +71,14 @@ export function ChangeMap() {
     (async () => {
       while (cursor < targets.length && !cancelled) {
         const batch = targets.slice(cursor, cursor + 8);
-        const results = await Promise.all(
-          batch.map((c) => getCommitDetail(repo.id, c.sha, null).catch(() => null)),
-        );
+        const results = await Promise.all(batch.map((c) => getCommitDetail(repo.id, c.sha, null).catch(() => null)));
         batch.forEach((c, i) => {
-          if (results[i]) map.set(c.sha, results[i]!);
+          const result = results[i];
+          if (result) map.set(c.sha, result);
         });
         if (!cancelled) {
           setDetails(new Map(map));
-          setProgress(Math.round((cursor + batch.length) / targets.length * 100));
+          setProgress(Math.round(((cursor + batch.length) / targets.length) * 100));
         }
         cursor += batch.length;
       }
@@ -109,7 +114,9 @@ export function ChangeMap() {
   const cells = useMemo<Cell[]>(() => {
     if (!range) return [];
     const rowOf = new Map<string, number>();
-    rows.forEach((r, i) => rowOf.set(r, i));
+    rows.forEach((r, i) => {
+      rowOf.set(r, i);
+    });
     const out: Cell[] = [];
     range.commits.slice(0, commitCount).forEach((c, col) => {
       const d = details.get(c.sha);
@@ -130,7 +137,8 @@ export function ChangeMap() {
     return out;
   }, [range, rows, details, commitCount, hasWorkingTree, wtFrame]);
 
-  // Draw.
+  // Draw. `themeTick` is both a repaint trigger when the theme changes and a
+  // fallback for the CSS-var reads below.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -144,8 +152,12 @@ export function ChangeMap() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
-    const css = (name: string, fb: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
-    ctx.fillStyle = css("--bg-panel", "#ffffff");
+    const css = (name: string, fb: string) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
+    // themeTick grounds the fallbacks: even if the CSS vars are unavailable,
+    // the canvas stays consistent with the selected theme.
+    const dark = themeTick === "dark" || (themeTick === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    ctx.fillStyle = css("--bg-panel", dark ? "#15171b" : "#ffffff");
     ctx.fillRect(0, 0, width, height);
 
     // Column headers: commit numbers + short shas.
@@ -161,7 +173,7 @@ export function ChangeMap() {
     rows.forEach((path, r) => {
       const y = 24 + r * ROW_H;
       ctx.fillStyle = css("--text-dim", "#666");
-      const label = path.length > 45 ? "…" + path.slice(-44) : path;
+      const label = path.length > 45 ? `…${path.slice(-44)}` : path;
       ctx.fillText(label, 8, y + 11);
       ctx.strokeStyle = css("--border", "#ddd");
       ctx.beginPath();
@@ -213,22 +225,38 @@ export function ChangeMap() {
 
   const n = frameCount(range, hasWorkingTree) - 1;
 
+  const showCell = (col: number, row: number, x: number, y: number) => {
+    const cell = cells.find((c) => c.row === row && c.col === col);
+    setHover(cell ?? null);
+    if (cell) {
+      const path = cell.change.oldPath ? `${cell.change.oldPath} → ${cell.change.newPath}` : cell.change.newPath;
+      const commitLabel =
+        cell.col === commitCount
+          ? "Working tree"
+          : `Commit ${cell.col + 1} · ${shortSha(range.commits[cell.col].sha)} · ${formatDateTime(range.commits[cell.col].commitTs)}`;
+      setTooltip({ x, y, text: `${path}\n${commitLabel}\n${cell.change.status}` });
+    } else {
+      setTooltip(null);
+    }
+  };
+
+  /** Activate a cell — the shared action for pointer clicks and Enter/Space. */
+  const activateCell = (col: number, row: number) => {
+    if (row >= 0 && row < rows.length && col >= 0 && col < totalCols) {
+      setSelectedFile(rows[row]);
+      setIndex(col === commitCount ? commitCount + 1 : col + 1);
+    }
+  };
+
   const onMouseMove = (e: React.MouseEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const col = Math.floor((x - LABEL_W) / 10);
     const row = Math.floor((y - 24) / ROW_H);
     if (col >= 0 && col < totalCols && row >= 0 && row < rows.length) {
-      const cell = cells.find((c) => c.row === row && c.col === col);
-      setHover(cell ?? null);
-      if (cell) {
-        const path = cell.change.oldPath ? `${cell.change.oldPath} → ${cell.change.newPath}` : cell.change.newPath;
-        const commitLabel = cell.col === commitCount ? "Working tree" : `Commit ${cell.col + 1} · ${shortSha(range.commits[cell.col].sha)} · ${formatDateTime(range.commits[cell.col].commitTs)}`;
-        setTooltip({ x, y, text: `${path}\n${commitLabel}\n${cell.change.status}` });
-      } else {
-        setTooltip(null);
-      }
+      showCell(col, row, x, y);
     } else {
       setHover(null);
       setTooltip(null);
@@ -236,7 +264,8 @@ export function ChangeMap() {
   };
 
   const onClick = (e: React.MouseEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const col = Math.floor((x - LABEL_W) / 10);
@@ -245,11 +274,27 @@ export function ChangeMap() {
       setSelectedFile(rows[row]);
       return;
     }
-    if (col >= 0 && col < totalCols && row >= 0 && row < rows.length) {
-      setSelectedFile(rows[row]);
-      if (col === commitCount) setIndex(commitCount + 1);
-      else setIndex(col + 1);
-    }
+    activateCell(col, row);
+  };
+
+  // Keyboard parity for the pointer interactions: arrows move a cell cursor
+  // (drawn by the same hover outline), Enter/Space activates it.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const cur = hover ?? { row: Math.max(Math.floor((rows.length - 1) / 2), 0), col: Math.floor(totalCols / 2) };
+    let { row, col } = cur;
+    if (e.key === "ArrowLeft") col -= 1;
+    else if (e.key === "ArrowRight") col += 1;
+    else if (e.key === "ArrowUp") row -= 1;
+    else if (e.key === "ArrowDown") row += 1;
+    else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      activateCell(cur.col, cur.row);
+      return;
+    } else return;
+    e.preventDefault();
+    row = Math.min(Math.max(row, 0), rows.length - 1);
+    col = Math.min(Math.max(col, 0), totalCols - 1);
+    showCell(col, row, LABEL_W + col * 10 + 2, 24 + row * ROW_H + 2);
   };
 
   return (
@@ -258,27 +303,54 @@ export function ChangeMap() {
         <span className="panel-title">
           Change map
           <span className="dim">
-            {rows.length} files × {totalCols} frames{commitCount >= MAX_COMMITS ? ` (first ${MAX_COMMITS} commits)` : ""}
+            {rows.length} files × {totalCols} frames
+            {commitCount >= MAX_COMMITS ? ` (first ${MAX_COMMITS} commits)` : ""}
           </span>
         </span>
-        <span className="dim map-progress">{progress < 100 ? `indexing… ${progress}%` : "click a cell to jump · click a file to select"}</span>
+        <span className="dim map-progress">
+          {progress < 100 ? `indexing… ${progress}%` : "click a cell to jump · click a file to select"}
+        </span>
       </div>
-      <div className="map-scroll" ref={scrollRef} onMouseMove={onMouseMove} onClick={onClick} onMouseLeave={() => { setHover(null); setTooltip(null); }}>
-        <canvas ref={canvasRef} className="map-canvas" />
+      <div className="map-wrap">
+        <button
+          type="button"
+          className="map-scroll"
+          ref={scrollRef}
+          aria-label="Change map — arrow keys move the cell cursor, Enter jumps to the commit"
+          onMouseMove={onMouseMove}
+          onClick={onClick}
+          onKeyDown={onKeyDown}
+          onMouseLeave={() => {
+            setHover(null);
+            setTooltip(null);
+          }}
+        >
+          <canvas ref={canvasRef} className="map-canvas" />
+        </button>
         {tooltip && (
           <div className="map-tooltip" style={{ left: tooltip.x + 14, top: tooltip.y + 12 }}>
-            {tooltip.text.split("\n").map((l, i) => (
-              <div key={i}>{l}</div>
+            {tooltip.text.split("\n").map((l) => (
+              <div key={l}>{l}</div>
             ))}
           </div>
         )}
       </div>
       <div className="map-legend dim">
-        <span><i className="dot" style={{ background: statusColor("added", "light") }} /> created</span>
-        <span><i className="dot" style={{ background: "var(--accent)" }} /> modified</span>
-        <span><i className="dot" style={{ background: statusColor("deleted", "light") }} /> deleted</span>
-        <span><i className="dot" style={{ background: statusColor("renamed", "light") }} /> moved/copied</span>
-        <span><i className="dot" style={{ background: "#0ea5a5" }} /> untracked</span>
+        <span>
+          <i className="dot" style={{ background: statusColor("added", "light") }} /> created
+        </span>
+        <span>
+          <i className="dot" style={{ background: "var(--accent)" }} /> modified
+        </span>
+        <span>
+          <i className="dot" style={{ background: statusColor("deleted", "light") }} /> deleted
+        </span>
+        <span>
+          <i className="dot" style={{ background: statusColor("renamed", "light") }} /> moved/copied
+        </span>
+        <span>
+          <i className="dot" style={{ background: "#0ea5a5" }} /> untracked
+        </span>
         <span className="spacer" />
         <span>commits → ({n} total)</span>
       </div>

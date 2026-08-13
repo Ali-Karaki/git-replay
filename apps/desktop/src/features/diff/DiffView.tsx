@@ -2,14 +2,22 @@
 // row virtualization. Parses git's unified patch (presentation only — git
 // semantics live in the engine).
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { buildSplitRows, parseDiff, wordDiff, type DiffLine, type ParsedDiff, type SplitRow } from "../../lib/diffParse";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { HighlightedTokens } from "../../components/Highlighted";
+import { SwapIcon, WarningIcon } from "../../components/Icons";
+import {
+  buildSplitRows,
+  type DiffLine,
+  type ParsedDiff,
+  parseDiff,
+  type SplitRow,
+  wordDiff,
+} from "../../lib/diffParse";
 import { highlightLines } from "../../lib/highlight";
 import { langForPath } from "../../lib/langs";
-import { escapeHtml } from "../../lib/format";
 import { useReplay } from "../../stores/replay";
-import { SwapIcon, WarningIcon } from "../../components/Icons";
+import type { HighlightToken } from "../../workers/highlight.worker";
 
 const ROW_HEIGHT = 20;
 const OVERSCAN = 30;
@@ -41,29 +49,39 @@ function useScrollPreservation(scrollKey: string | null, ref: React.RefObject<HT
   }, [scrollKey, ref]);
 }
 
-function Highlighted({ html }: { html: string }) {
-  return <span className="diff-code-text" dangerouslySetInnerHTML={{ __html: html }} />;
+function Highlighted({ tokens }: { tokens: HighlightToken[] }) {
+  return (
+    <span className="diff-code-text">
+      <HighlightedTokens tokens={tokens} />
+    </span>
+  );
 }
 
-/** Highlight the visible window of lines; returns escaped plain text until
- *  the worker answers (no flash of unstyled text). */
+/** Highlight the visible window of lines; returns plain unhighlighted
+ *  tokens until the worker answers (no flash of unstyled text). */
 function useWindowedHighlight(lang: string | null, base: string[], start: number, end: number) {
   const windowTexts = useMemo(() => base.slice(start, end), [base, start, end]);
-  const [html, setHtml] = useState<string[] | null>(null);
+  const [tokens, setTokens] = useState<HighlightToken[][] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    setHtml(null);
+    setTokens(null);
     highlightLines(lang, windowTexts).then((out) => {
-      if (!cancelled) setHtml(out);
+      if (!cancelled) setTokens(out);
     });
     return () => {
       cancelled = true;
     };
   }, [lang, windowTexts]);
-  return html ?? windowTexts.map(escapeHtml);
+  return tokens ?? windowTexts.map((text) => [{ cls: [], text }]);
 }
 
-function WordHighlighted({ text, pair }: { text: string; pair: { prefix: string; mid: string; suffix: string } | null }) {
+function WordHighlighted({
+  text,
+  pair,
+}: {
+  text: string;
+  pair: { prefix: string; mid: string; suffix: string } | null;
+}) {
   if (!pair || pair.mid === "") return <>{text}</>;
   return (
     <>
@@ -76,13 +94,19 @@ function WordHighlighted({ text, pair }: { text: string; pair: { prefix: string;
 
 // -- unified -------------------------------------------------------------------
 
-interface UnifiedRow {
-  kind: "hunk" | "line";
-  line?: DiffLine;
-  header?: string;
-}
+type UnifiedRow = { kind: "hunk"; header: string } | { kind: "line"; line: DiffLine };
 
-function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; lang: string | null; wrap: boolean; scrollKey: string | null }) {
+function UnifiedRows({
+  parsed,
+  lang,
+  wrap,
+  scrollKey,
+}: {
+  parsed: ParsedDiff;
+  lang: string | null;
+  wrap: boolean;
+  scrollKey: string | null;
+}) {
   const rows = useMemo<UnifiedRow[]>(() => {
     const out: UnifiedRow[] = [];
     for (const hunk of parsed.hunks) {
@@ -104,8 +128,8 @@ function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; la
   const items = virtualizer.getVirtualItems();
   const start = items[0]?.index ?? 0;
   const end = (items.at(-1)?.index ?? 0) + 1;
-  const baseTexts = useMemo(() => rows.map((r) => (r.kind === "line" ? r.line!.text : "")), [rows]);
-  const html = useWindowedHighlight(lang, baseTexts, start, end);
+  const baseTexts = useMemo(() => rows.map((r) => (r.kind === "line" ? r.line.text : "")), [rows]);
+  const highlighted = useWindowedHighlight(lang, baseTexts, start, end);
 
   return (
     <div ref={parentRef} className={`diff-scroll ${wrap ? "wrap" : ""}`}>
@@ -119,7 +143,7 @@ function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; la
               </div>
             );
           }
-          const line = row.line!;
+          const line = row.line;
           const sign = line.kind === "add" ? "+" : line.kind === "del" ? "−" : line.kind === "eof" ? "⏎" : "";
           return (
             <div key={vi.key} className={`diff-line ${line.kind}`} style={{ transform: `translateY(${vi.start}px)` }}>
@@ -127,7 +151,7 @@ function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; la
               <span className="diff-ln new">{line.newNo ?? ""}</span>
               <span className="diff-code">
                 <span className="diff-sign">{sign}</span>
-                <Highlighted html={html[vi.index - start] ?? ""} />
+                <Highlighted tokens={highlighted[vi.index - start] ?? [{ cls: [], text: "" }]} />
               </span>
             </div>
           );
@@ -139,7 +163,17 @@ function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; la
 
 // -- split ---------------------------------------------------------------------
 
-function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; lang: string | null; wrap: boolean; scrollKey: string | null }) {
+function SplitRowsView({
+  parsed,
+  lang,
+  wrap,
+  scrollKey,
+}: {
+  parsed: ParsedDiff;
+  lang: string | null;
+  wrap: boolean;
+  scrollKey: string | null;
+}) {
   const rows = useMemo(() => buildSplitRows(parsed), [parsed]);
   const parentRef = useRef<HTMLDivElement | null>(null);
   useScrollPreservation(scrollKey ? `s:${scrollKey}` : null, parentRef);
@@ -154,8 +188,8 @@ function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; 
   const end = (items.at(-1)?.index ?? 0) + 1;
   const leftBase = useMemo(() => rows.map((r) => r.left?.text ?? ""), [rows]);
   const rightBase = useMemo(() => rows.map((r) => r.right?.text ?? ""), [rows]);
-  const leftHtml = useWindowedHighlight(lang, leftBase, start, end);
-  const rightHtml = useWindowedHighlight(lang, rightBase, start, end);
+  const leftTokens = useWindowedHighlight(lang, leftBase, start, end);
+  const rightTokens = useWindowedHighlight(lang, rightBase, start, end);
 
   return (
     <div ref={parentRef} className={`diff-scroll ${wrap ? "wrap" : ""}`}>
@@ -175,7 +209,7 @@ function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; 
                 {wd ? (
                   <WordHighlighted text={row.left?.text ?? ""} pair={wd.del} />
                 ) : (
-                  <Highlighted html={leftHtml[vi.index - start] ?? ""} />
+                  <Highlighted tokens={leftTokens[vi.index - start] ?? [{ cls: [], text: "" }]} />
                 )}
               </span>
               <span className="diff-ln new">{row.newNo ?? ""}</span>
@@ -184,7 +218,7 @@ function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; 
                 {wd ? (
                   <WordHighlighted text={row.right?.text ?? ""} pair={wd.add} />
                 ) : (
-                  <Highlighted html={rightHtml[vi.index - start] ?? ""} />
+                  <Highlighted tokens={rightTokens[vi.index - start] ?? [{ cls: [], text: "" }]} />
                 )}
               </span>
             </div>
@@ -197,7 +231,15 @@ function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; 
 
 // -- container -------------------------------------------------------------------
 
-export function DiffView({ patch, oldPath, newPath }: { patch: string | null; oldPath?: string | null; newPath?: string | null }) {
+export function DiffView({
+  patch,
+  oldPath,
+  newPath,
+}: {
+  patch: string | null;
+  oldPath?: string | null;
+  newPath?: string | null;
+}) {
   const diffMode = useReplay((s) => s.diffMode);
   const set = useReplay.setState;
   const [wrap, setWrap] = useState(false);
@@ -240,7 +282,8 @@ export function DiffView({ patch, oldPath, newPath }: { patch: string | null; ol
   const statusParts: string[] = [];
   if (parsed.isNew) statusParts.push("new file");
   if (parsed.isDeleted) statusParts.push("deleted file");
-  if (parsed.isRename) statusParts.push(`renamed${parsed.similarity !== null ? ` · ${parsed.similarity}% similar` : ""}`);
+  if (parsed.isRename)
+    statusParts.push(`renamed${parsed.similarity !== null ? ` · ${parsed.similarity}% similar` : ""}`);
   if (parsed.oldMode && parsed.newMode && parsed.oldMode !== parsed.newMode) {
     statusParts.push(`mode ${parsed.oldMode} → ${parsed.newMode}`);
   }
@@ -250,17 +293,25 @@ export function DiffView({ patch, oldPath, newPath }: { patch: string | null; ol
       <div className="diff-toolbar">
         <span className="diff-path">
           {parsed.isRename && parsed.oldPath ? (
-            <>{parsed.oldPath} <span className="dim">→</span> {parsed.newPath}</>
+            <>
+              {parsed.oldPath} <span className="dim">→</span> {parsed.newPath}
+            </>
           ) : (
             displayPath
           )}
         </span>
         {statusParts.length > 0 && <span className="dim">{statusParts.join(" · ")}</span>}
         <span className="spacer" />
-        <button className={`chip ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)} title="Wrap long lines">
+        <button
+          type="button"
+          className={`chip ${wrap ? "on" : ""}`}
+          onClick={() => setWrap(!wrap)}
+          title="Wrap long lines"
+        >
           wrap
         </button>
         <button
+          type="button"
           className="chip"
           onClick={() => set({ diffMode: diffMode === "unified" ? "split" : "unified" })}
           title="Toggle unified / split view"

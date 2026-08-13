@@ -3,12 +3,16 @@
 // paints and hit-tests (ADR-0004).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ZoomInIcon, ZoomOutIcon } from "../../components/Icons";
 import { formatDateTime } from "../../lib/format";
 import {
-  buildTimelineLayout, computeChapters, MAX_PX_PER_COMMIT, TIMELINE_HEIGHT, TIMELINE_PAD,
+  buildTimelineLayout,
+  computeChapters,
+  MAX_PX_PER_COMMIT,
+  TIMELINE_HEIGHT,
+  TIMELINE_PAD,
 } from "../../lib/timelineModel";
 import { useReplay } from "../../stores/replay";
-import { ZoomInIcon, ZoomOutIcon } from "../../components/Icons";
 
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -69,7 +73,10 @@ export function Timeline() {
       frameIdx > 0 && frameIdx <= range.commits.length && range.commits[frameIdx - 1].parents.length > 1;
     const isWt = (frameIdx: number) => hasWorkingTree && frameIdx === range.commits.length + 1;
 
-    const drawNode = (x: number, opts: { current?: boolean; merge?: boolean; base?: boolean; head?: boolean; wt?: boolean }) => {
+    const drawNode = (
+      x: number,
+      opts: { current?: boolean; merge?: boolean; base?: boolean; head?: boolean; wt?: boolean },
+    ) => {
       ctx.beginPath();
       if (opts.current) {
         ctx.arc(x, cy, 6, 0, Math.PI * 2);
@@ -117,7 +124,9 @@ export function Timeline() {
         const h = 4 + (b.count / maxCount) * 16;
         const x = TIMELINE_PAD + bi * bucketW + bucketW / 2;
         const isCur = index >= b.firstIndex && index <= b.lastIndex;
-        const hasMerge = range.commits.slice(Math.max(b.firstIndex - 1, 0), b.lastIndex).some((c) => c.parents.length > 1);
+        const hasMerge = range.commits
+          .slice(Math.max(b.firstIndex - 1, 0), b.lastIndex)
+          .some((c) => c.parents.length > 1);
         ctx.fillStyle = isCur ? accent : hasMerge ? merge : node;
         ctx.beginPath();
         ctx.roundRect(x - Math.max(bucketW * 0.3, 1.5), cy - h / 2, Math.max(bucketW * 0.6, 3), h, 2);
@@ -129,7 +138,8 @@ export function Timeline() {
       ctx.font = "10px ui-sans-serif, system-ui";
       const first = layout.buckets[0];
       const last = layout.buckets[layout.buckets.length - 1];
-      const fmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      const fmt = (ts: number) =>
+        new Date(ts * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
       ctx.fillText(fmt(first.dayStart), TIMELINE_PAD, TIMELINE_HEIGHT - 4);
       const lastLabel = fmt(last.dayStart);
       ctx.fillText(lastLabel, width - TIMELINE_PAD - ctx.measureText(lastLabel).width, TIMELINE_HEIGHT - 4);
@@ -216,7 +226,8 @@ export function Timeline() {
   const onMouseMove = (e: React.MouseEvent) => {
     const idx = frameAtPoint(e.clientX);
     setHoverIdx(idx);
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
     let title: string;
     let text: string;
     if (idx === 0) {
@@ -287,27 +298,64 @@ export function Timeline() {
   };
 
   return (
-    <div className="timeline" ref={wrapRef} onMouseMove={onMouseMove} onMouseLeave={() => { setHoverIdx(null); setTooltip(null); }}
-      onMouseDown={onMouseDown} onMouseUp={onMouseUp} onWheel={onWheel}>
+    <div
+      className="timeline"
+      ref={wrapRef}
+      role="application"
+      aria-label="Timeline scrubber — click or drag to jump, arrow keys step, mouse wheel zooms"
+      onMouseMove={onMouseMove}
+      onMouseLeave={() => {
+        setHoverIdx(null);
+        setTooltip(null);
+      }}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onWheel={onWheel}
+    >
       <canvas ref={canvasRef} className="timeline-canvas" />
       {tooltip && (
-        <div className="timeline-tooltip" style={{ left: Math.min(Math.max(tooltip.x, 70), (wrapRef.current?.clientWidth ?? 400) - 70) }}>
+        <div
+          className="timeline-tooltip"
+          style={{ left: Math.min(Math.max(tooltip.x, 70), (wrapRef.current?.clientWidth ?? 400) - 70) }}
+        >
           <div className="timeline-tooltip-title">{tooltip.title}</div>
           <div className="timeline-tooltip-sub">{tooltip.text}</div>
         </div>
       )}
       <div className="timeline-zoom">
         <button
+          type="button"
           className={`chip ${groupChapters ? "on" : ""}`}
           onClick={() => useReplay.setState({ groupChapters: !groupChapters })}
           title="Group commits into chapters (alternate view — raw commits stay visible)"
         >
           chapters
         </button>
-        <button className="btn-icon" onClick={zoomOut} title="Zoom out (fit when far)" aria-label="Zoom out"><ZoomOutIcon size={13} /></button>
-        <button className="btn-icon" onClick={() => { setTimelineZoom("fit"); setTimelineScroll(0); }} title="Fit to width" aria-label="Fit to width"
-          style={{ fontSize: 10, fontWeight: 600, minWidth: 22 }}>{zoom === "fit" ? "≡" : `${Math.round(zoom)}px`}</button>
-        <button className="btn-icon" onClick={zoomIn} title="Zoom in" aria-label="Zoom in"><ZoomInIcon size={13} /></button>
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={zoomOut}
+          title="Zoom out (fit when far)"
+          aria-label="Zoom out"
+        >
+          <ZoomOutIcon size={13} />
+        </button>
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => {
+            setTimelineZoom("fit");
+            setTimelineScroll(0);
+          }}
+          title="Fit to width"
+          aria-label="Fit to width"
+          style={{ fontSize: 10, fontWeight: 600, minWidth: 22 }}
+        >
+          {zoom === "fit" ? "≡" : `${Math.round(zoom)}px`}
+        </button>
+        <button type="button" className="btn-icon" onClick={zoomIn} title="Zoom in" aria-label="Zoom in">
+          <ZoomInIcon size={13} />
+        </button>
       </div>
     </div>
   );

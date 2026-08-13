@@ -1,15 +1,12 @@
 // UI / playback state (Zustand). Repository data lives in the Rust engine and
 // the module-level query caches — never in global React state (spec §32).
 
+import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { invoke } from "@tauri-apps/api/core";
-import { api } from "../lib/ipc";
 import { clearCaches } from "../lib/dataCaches";
-import type {
-  BranchInfo, HeadState, PrReplay, ReplayRange, RepoInfo, TagInfo,
-  WorkingTreeFrame,
-} from "../lib/types";
+import { api } from "../lib/ipc";
+import type { BranchInfo, HeadState, PrReplay, ReplayRange, RepoInfo, TagInfo, WorkingTreeFrame } from "../lib/types";
 
 export type ViewMode = "step" | "snapshot" | "evolution" | "map";
 export type Theme = "system" | "light" | "dark";
@@ -67,7 +64,12 @@ interface ReplayState {
   session: SavedSession | null;
 
   openRepo(path: string): Promise<boolean>;
-  configureRange(baseRef: string | null, headRef: string | null, useMergeBase: boolean, firstParent: boolean): Promise<boolean>;
+  configureRange(
+    baseRef: string | null,
+    headRef: string | null,
+    useMergeBase: boolean,
+    firstParent: boolean,
+  ): Promise<boolean>;
   resolvePr(prInput: string, version: string | null): Promise<boolean>;
   finishResolve(range: ReplayRange, pr: PrReplay | null): void;
   createDemoRepo(): Promise<boolean>;
@@ -154,9 +156,20 @@ export const useReplay = create<ReplayState>()(
           ]);
           const recentRepos = [path, ...get().recentRepos.filter((p) => p !== path)].slice(0, 8);
           set({
-            repo, branches, tags, headState, recentRepos,
-            range: null, pr: null, index: 0, selectedFile: null, playing: false,
-            expandedDirs: [], wtFrame: null, hasWorkingTree: false, repoChanged: false,
+            repo,
+            branches,
+            tags,
+            headState,
+            recentRepos,
+            range: null,
+            pr: null,
+            index: 0,
+            selectedFile: null,
+            playing: false,
+            expandedDirs: [],
+            wtFrame: null,
+            hasWorkingTree: false,
+            repoChanged: false,
             busy: false,
           });
           clearCaches();
@@ -202,7 +215,8 @@ export const useReplay = create<ReplayState>()(
         const { repo, headState } = get();
         const hasWorkingTree = !!repo && !!headState && range.headSha === headState.sha;
         set({
-          range, pr,
+          range,
+          pr,
           hasWorkingTree,
           wtFrame: null,
           index: 0,
@@ -270,7 +284,10 @@ export const useReplay = create<ReplayState>()(
             get().finishResolve(pr.range, pr);
           } else {
             const range = await api.resolveReplay(repo.id, {
-              baseRef: session.baseSha, headRef: session.headSha, useMergeBase: false, firstParent: false,
+              baseRef: session.baseSha,
+              headRef: session.headSha,
+              useMergeBase: false,
+              firstParent: false,
             });
             get().finishResolve(range, null);
           }
@@ -285,10 +302,22 @@ export const useReplay = create<ReplayState>()(
 
       reset() {
         set({
-          repo: null, branches: [], tags: [], range: null, pr: null, index: 0,
-          playing: false, selectedFile: null, expandedDirs: [], busy: false,
-          error: null, errorDetail: null, mergeParent: 0, wtFrame: null,
-          hasWorkingTree: false, headState: null,
+          repo: null,
+          branches: [],
+          tags: [],
+          range: null,
+          pr: null,
+          index: 0,
+          playing: false,
+          selectedFile: null,
+          expandedDirs: [],
+          busy: false,
+          error: null,
+          errorDetail: null,
+          mergeParent: 0,
+          wtFrame: null,
+          hasWorkingTree: false,
+          headState: null,
         });
       },
 
@@ -361,7 +390,9 @@ export const useReplay = create<ReplayState>()(
         if (!repo) return;
         const info = await api.openRepository(repo.path); // revalidates + reuses handle
         const [branches, tags, headState] = await Promise.all([
-          api.listBranches(info.id), api.listTags(info.id), api.getHeadState(info.id),
+          api.listBranches(info.id),
+          api.listTags(info.id),
+          api.getHeadState(info.id),
         ]);
         // The working-tree frame exists only while the replay head is the
         // checked-out commit — recompute after a repository change.

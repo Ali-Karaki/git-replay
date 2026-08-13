@@ -3,14 +3,14 @@
 // watching the file grow — with file-only playback and prev/next navigation.
 
 import { useEffect, useState } from "react";
+import { EvolutionIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "../../components/Icons";
+import { ErrorPanel, Skeleton } from "../../components/States";
+import { getCommitDetail, getFileDiff } from "../../lib/dataCaches";
+import { formatCount, formatDateTime, shortSha, statusLabel } from "../../lib/format";
 import { api } from "../../lib/ipc";
 import { useData } from "../../lib/useData";
-import { formatCount, formatDateTime, shortSha, statusLabel } from "../../lib/format";
 import { useReplay } from "../../stores/replay";
-import { getCommitDetail, getFileDiff } from "../../lib/dataCaches";
 import { DiffView } from "../diff/DiffView";
-import { ErrorPanel, Skeleton } from "../../components/States";
-import { EvolutionIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "../../components/Icons";
 
 export function FileEvolution() {
   const repo = useReplay((s) => s.repo);
@@ -21,7 +21,11 @@ export function FileEvolution() {
 
   const evolution = useData(
     repo && range && selectedFile ? `${repo.id}|${range.baseSha}|${range.headSha}|${selectedFile}` : null,
-    () => api.getFileEvolution(repo!.id, range!.baseSha, range!.headSha, selectedFile!),
+    () => {
+      // The key guarantees repo, range, and selectedFile are set whenever the loader runs.
+      if (!repo || !range || !selectedFile) throw new Error("unreachable: evolution key requires repo/range/file");
+      return api.getFileEvolution(repo.id, range.baseSha, range.headSha, selectedFile);
+    },
   );
 
   // Index (within the evolution entries) of the entry currently being shown.
@@ -35,19 +39,19 @@ export function FileEvolution() {
     }
   }, [evolution.data, entryIdx]);
 
-  // File-only playback.
+  // File-only playback. `entryIdx` re-arms the timer per step, matching the
+  // main transport's manual-step-wins behavior.
   useEffect(() => {
     if (!playing || !evolution.data) return;
     const timer = window.setTimeout(() => {
-      setEntryIdx((i) => {
-        if (i === null) return i;
-        const next = i - 1;
-        if (next < 0) {
-          setPlaying(false);
-          return 0;
-        }
-        return next;
-      });
+      if (entryIdx === null) return;
+      const next = entryIdx - 1;
+      if (next < 0) {
+        setPlaying(false);
+        setEntryIdx(0);
+      } else {
+        setEntryIdx(next);
+      }
     }, 900);
     return () => window.clearTimeout(timer);
   }, [playing, entryIdx, evolution.data]);
@@ -56,7 +60,9 @@ export function FileEvolution() {
   if (!selectedFile) {
     return (
       <div className="view-evolution">
-        <div className="empty-mini">Select a file (from Snapshot view or the changed files) to follow its evolution.</div>
+        <div className="empty-mini">
+          Select a file (from Snapshot view or the changed files) to follow its evolution.
+        </div>
       </div>
     );
   }
@@ -69,7 +75,7 @@ export function FileEvolution() {
 
   const entries = evolution.data; // oldest → newest
   const current = entryIdx !== null ? entries[entryIdx] : entries[entries.length - 1];
-  const shaIndex = useReplay.getState().range!.commits.findIndex((c) => c.sha === current.sha);
+  const shaIndex = range.commits.findIndex((c) => c.sha === current.sha);
   const frameNo = shaIndex + 1;
 
   return (
@@ -81,10 +87,11 @@ export function FileEvolution() {
           </span>
         </div>
         <div className="panel-toolbar slim">
-          <button className="chip" onClick={() => setPlaying(!playing)}>
+          <button type="button" className="chip" onClick={() => setPlaying(!playing)}>
             {playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />} {playing ? "pause" : "play file"}
           </button>
           <button
+            type="button"
             className="btn-icon"
             disabled={entryIdx === null || entryIdx <= 0}
             onClick={() => setEntryIdx((i) => (i === null ? 0 : i - 1))}
@@ -93,6 +100,7 @@ export function FileEvolution() {
             <PrevIcon size={13} />
           </button>
           <button
+            type="button"
             className="btn-icon"
             disabled={entryIdx === null || entryIdx >= entries.length - 1}
             onClick={() => setEntryIdx((i) => (i === null ? entries.length - 1 : i + 1))}
@@ -107,6 +115,7 @@ export function FileEvolution() {
             .reverse()
             .map(({ e, i }) => (
               <button
+                type="button"
                 key={e.sha + e.newPath}
                 className={`file-row ${i === entryIdx ? "selected" : ""}`}
                 onClick={() => setEntryIdx(i)}
@@ -136,23 +145,40 @@ export function FileEvolution() {
   );
 }
 
-function EvolutionDetail({ entry, frameNo, onJump, mergeParent }: {
-  entry: { sha: string; subject: string; commitTs: number; status: string; oldPath: string | null; newPath: string; additions: number; deletions: number; similarity: number | null };
+function EvolutionDetail({
+  entry,
+  frameNo,
+  onJump,
+  mergeParent,
+}: {
+  entry: {
+    sha: string;
+    subject: string;
+    commitTs: number;
+    status: string;
+    oldPath: string | null;
+    newPath: string;
+    additions: number;
+    deletions: number;
+    similarity: number | null;
+  };
   frameNo: number;
   onJump: () => void;
   mergeParent: number;
 }) {
   const repo = useReplay((s) => s.repo);
-  const detail = useData(repo ? `${repo.id}|${entry.sha}|${mergeParent}` : null, () =>
-    getCommitDetail(repo!.id, entry.sha, mergeParent),
-  );
-  const change = detail.data?.files.find(
-    (f) => f.newPath === entry.newPath || f.oldPath === entry.oldPath || f.newPath === entry.newPath,
-  );
-  const diff = useData(
-    repo && change ? `${repo.id}|${entry.sha}|${mergeParent}|${change.newPath}` : null,
-    () => getFileDiff(repo!.id, entry.sha, change!.newPath, detail.data!.meta.parents.length > 1 ? mergeParent : null),
-  );
+  const detail = useData(repo ? `${repo.id}|${entry.sha}|${mergeParent}` : null, () => {
+    // The key guarantees repo is set whenever the loader runs.
+    if (!repo) throw new Error("unreachable: evolution detail key requires a repo");
+    return getCommitDetail(repo.id, entry.sha, mergeParent);
+  });
+  const change = detail.data?.files.find((f) => f.newPath === entry.newPath || f.oldPath === entry.oldPath);
+  const diff = useData(repo && change ? `${repo.id}|${entry.sha}|${mergeParent}|${change.newPath}` : null, () => {
+    // The key guarantees repo, change, and detail are set whenever the loader runs.
+    if (!repo || !change || !detail.data)
+      throw new Error("unreachable: evolution diff key requires repo/change/detail");
+    return getFileDiff(repo.id, entry.sha, change.newPath, detail.data.meta.parents.length > 1 ? mergeParent : null);
+  });
 
   const statusText =
     entry.status === "renamed" || entry.status === "copied"
@@ -165,7 +191,7 @@ function EvolutionDetail({ entry, frameNo, onJump, mergeParent }: {
       <div className="commit-header">
         <div className="commit-header-top">
           <h2 className="commit-subject">
-            <button className="commit-no jump" onClick={onJump} title="Jump to this commit in the replay">
+            <button type="button" className="commit-no jump" onClick={onJump} title="Jump to this commit in the replay">
               {frameNo}
             </button>
             {entry.subject}

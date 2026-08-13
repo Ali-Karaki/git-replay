@@ -2,8 +2,8 @@
 // looking at right now — replay range, current frame, changed files, and the
 // selected file's diff (capped). Only ever sent when the user asks.
 
-import { getCachedCommitDetail, getCommitDetail, getFileDiff } from "./dataCaches";
 import { frameSha, useReplay } from "../stores/replay";
+import { getCachedCommitDetail, getCommitDetail, getFileDiff } from "./dataCaches";
 
 const DIFF_CAP = 6000;
 const FILES_CAP = 40;
@@ -41,9 +41,7 @@ export async function buildChatContext(): Promise<string> {
         `Changed files (${detail.stats.filesChanged} files, +${detail.stats.insertions} −${detail.stats.deletions}):`,
       );
       for (const f of detail.files.slice(0, FILES_CAP)) {
-        lines.push(
-          `- ${f.status} ${f.oldPath ? `${f.oldPath} → ` : ""}${f.newPath}${f.binary ? " (binary)" : ""}`,
-        );
+        lines.push(`- ${f.status} ${f.oldPath ? `${f.oldPath} → ` : ""}${f.newPath}${f.binary ? " (binary)" : ""}`);
       }
       if (s.selectedFile) {
         const diff = await getFileDiff(

@@ -81,12 +81,14 @@ describe("buildTimelineLayout", () => {
     const { range, hasWt } = makeRange(commits);
     const layout = buildTimelineLayout(range, hasWt, 300, "fit");
     expect(layout.aggregated).toBe(true);
-    expect(layout.buckets).not.toBeNull();
-    const total = layout.buckets!.reduce((s, b) => s + b.count, 0);
+    const buckets = layout.buckets;
+    expect(buckets).not.toBeNull();
+    if (!buckets) return;
+    const total = buckets.reduce((s, b) => s + b.count, 0);
     expect(total).toBe(101); // base + 100 commits, all bucketed
     // frameAt maps into a bucket's first index.
     const idx = layout.frameAt(TIMELINE_PAD + 1);
-    expect(idx).toBe(layout.buckets![0].firstIndex);
+    expect(idx).toBe(buckets[0].firstIndex);
   });
 
   it("never aggregates when zoomed in", () => {
@@ -101,7 +103,9 @@ describe("buildTimelineLayout", () => {
     // Narrow canvas: 2 frames must aggregate into day buckets.
     const layout = buildTimelineLayout(range, hasWt, 36, "fit");
     expect(layout.aggregated).toBe(true);
-    const last = layout.buckets!.at(-1)!;
+    const last = layout.buckets?.at(-1);
+    expect(last).toBeDefined();
+    if (!last) return;
     expect(last.lastIndex).toBe(2); // base=0, commit=1, working tree=2
     expect(layout.xOf(2)).toBeGreaterThan(TIMELINE_PAD);
   });

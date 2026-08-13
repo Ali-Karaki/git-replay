@@ -2,10 +2,8 @@
 // around a big play button, a speed menu, and the position readout.
 
 import { useEffect, useRef, useState } from "react";
+import { FirstIcon, LastIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, SpeedIcon } from "../../components/Icons";
 import { frameCount, useReplay } from "../../stores/replay";
-import {
-  FirstIcon, LastIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, SpeedIcon,
-} from "../../components/Icons";
 
 const SPEEDS = [0.5, 1, 2] as const;
 
@@ -24,7 +22,7 @@ function SpeedMenu() {
   // The popover is transient: it must never sit over the position readout
   // during playback (e.g. Space pressed with the menu open).
   useEffect(() => {
-    setOpen(false);
+    if (playing) setOpen(false);
   }, [playing]);
 
   // Close the menu on outside click or Escape.
@@ -44,13 +42,16 @@ function SpeedMenu() {
     };
   }, [open]);
 
-  // Focus the currently selected speed when the menu opens.
-  useEffect(() => {
-    if (open) {
-      itemRefs.current[SPEEDS.findIndex((s) => s === speed)]?.focus();
+  // Open the menu and focus the currently selected speed once it is mounted.
+  const toggleMenu = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      requestAnimationFrame(() => {
+        itemRefs.current[(SPEEDS as readonly number[]).indexOf(speed)]?.focus();
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  };
 
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
     const items = itemRefs.current.filter(Boolean) as HTMLButtonElement[];
@@ -74,8 +75,9 @@ function SpeedMenu() {
   return (
     <div className="speed-control" ref={menuRef}>
       <button
+        type="button"
         className="speed-btn"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleMenu}
         title="Playback speed"
         aria-label="Playback speed"
         aria-expanded={open}
@@ -85,15 +87,10 @@ function SpeedMenu() {
         <SpeedIcon size={13} /> {speed}×
       </button>
       {open && (
-        <div
-          id="speed-menu"
-          className="speed-menu"
-          role="menu"
-          aria-label="Playback speed"
-          onKeyDown={onMenuKeyDown}
-        >
+        <div id="speed-menu" className="speed-menu" role="menu" aria-label="Playback speed" onKeyDown={onMenuKeyDown}>
           {SPEEDS.map((s, i) => (
             <button
+              type="button"
               key={s}
               ref={(el) => {
                 itemRefs.current[i] = el;
@@ -110,6 +107,7 @@ function SpeedMenu() {
             </button>
           ))}
           <button
+            type="button"
             ref={(el) => {
               itemRefs.current[SPEEDS.length] = el;
             }}
@@ -146,20 +144,54 @@ export function Transport() {
 
   return (
     <div className="transport">
-      <button className="btn-icon" onClick={() => setIndex(0)} disabled={atStart} title="First frame (Home)" aria-label="First frame">
+      <button
+        type="button"
+        className="btn-icon"
+        onClick={() => setIndex(0)}
+        disabled={atStart}
+        title="First frame (Home)"
+        aria-label="First frame"
+      >
         <FirstIcon />
       </button>
-      <button className="btn-icon" onClick={() => step(-1)} disabled={atStart} title="Previous commit (←)" aria-label="Previous commit">
+      <button
+        type="button"
+        className="btn-icon"
+        onClick={() => step(-1)}
+        disabled={atStart}
+        title="Previous commit (←)"
+        aria-label="Previous commit"
+      >
         <PrevIcon />
       </button>
-      <button className="btn-play btn-play-big" onClick={() => setPlaying(!playing)} title="Play / Pause (Space)" aria-label={playing ? "Pause" : "Play"}>
+      <button
+        type="button"
+        className="btn-play btn-play-big"
+        onClick={() => setPlaying(!playing)}
+        title="Play / Pause (Space)"
+        aria-label={playing ? "Pause" : "Play"}
+      >
         {playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
         <span className="btn-play-label">{playing ? "Pause" : "Play"}</span>
       </button>
-      <button className="btn-icon" onClick={() => step(1)} disabled={atEnd} title="Next commit (→)" aria-label="Next commit">
+      <button
+        type="button"
+        className="btn-icon"
+        onClick={() => step(1)}
+        disabled={atEnd}
+        title="Next commit (→)"
+        aria-label="Next commit"
+      >
         <NextIcon />
       </button>
-      <button className="btn-icon" onClick={() => setIndex(total)} disabled={atEnd} title="Last frame (End)" aria-label="Last frame">
+      <button
+        type="button"
+        className="btn-icon"
+        onClick={() => setIndex(total)}
+        disabled={atEnd}
+        title="Last frame (End)"
+        aria-label="Last frame"
+      >
         <LastIcon />
       </button>
 
@@ -169,7 +201,9 @@ export function Transport() {
         ) : index === total && hasWorkingTree ? (
           <strong>Working tree</strong>
         ) : (
-          <strong>Commit {index} of {range.commits.length}</strong>
+          <strong>
+            Commit {index} of {range.commits.length}
+          </strong>
         )}
         {commit && (
           <span className="transport-subject" title={commit.subject}>

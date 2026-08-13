@@ -44,7 +44,7 @@ export function computeChapters(range: ReplayRange, hasWt: boolean): Chapter[] {
     if (p) return p[0].toUpperCase() + p.slice(1);
     if (c.parents.length > 1) return "Merge";
     const words = c.subject.split(/\s+/).slice(0, 3).join(" ");
-    return words.length > 26 ? words.slice(0, 26) + "…" : words;
+    return words.length > 26 ? `${words.slice(0, 26)}…` : words;
   };
   for (let i = 1; i <= range.commits.length; i++) {
     const c = range.commits[i - 1];
@@ -96,7 +96,9 @@ export function buildTimelineLayout(
   // working-tree frame lands in today's bucket). Buckets follow LOCAL days so
   // the labels and the grouping agree with what the user sees.
   const frames: Array<{ ts: number; index: number }> = [{ ts: range.baseTs, index: 0 }];
-  range.commits.forEach((c, i) => frames.push({ ts: c.commitTs, index: i + 1 }));
+  range.commits.forEach((c, i) => {
+    frames.push({ ts: c.commitTs, index: i + 1 });
+  });
   if (hasWt) frames.push({ ts: Math.floor(Date.now() / 1000), index: range.commits.length + 1 });
   const byDay = new Map<string, DayBucket>();
   for (const f of frames) {

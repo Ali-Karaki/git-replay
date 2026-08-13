@@ -1,5 +1,6 @@
 // Playback clock: advances frames on a timer while playing. Manual stepping
-// always wins — any index change resets the timer.
+// always wins — any index change resets the timer (index is a dependency,
+// so each step re-arms it).
 //
 // Adaptive mode (spec 8) sizes the dwell time from the commit's stats when
 // they're already cached: a tiny commit flashes by, a substantial one pauses.
@@ -18,28 +19,32 @@ export function usePlayback() {
   const speed = useReplay((s) => s.speed);
   const index = useReplay((s) => s.index);
   const adaptive = useReplay((s) => s.adaptivePlayback);
+  const range = useReplay((s) => s.range);
+  const repo = useReplay((s) => s.repo);
+  const mergeParent = useReplay((s) => s.mergeParent);
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
+  const setPlaying = useReplay((s) => s.setPlaying);
+  const setIndex = useReplay((s) => s.setIndex);
 
   useEffect(() => {
     if (!playing) return;
     let delay = BASE_MS / speed;
-    const s = useReplay.getState();
-    if (adaptive && s.range && s.repo && s.index > 0 && s.index <= s.range.commits.length) {
-      const commit = s.range.commits[s.index - 1];
-      const detail = getCachedCommitDetail(s.repo.id, commit.sha, s.mergeParent);
+    if (adaptive && range && repo && index > 0 && index <= range.commits.length) {
+      const commit = range.commits[index - 1];
+      const detail = getCachedCommitDetail(repo.id, commit.sha, mergeParent);
       if (detail) {
         const size = detail.stats.filesChanged * 6 + detail.stats.insertions + detail.stats.deletions;
         delay = Math.min(ADAPTIVE_MAX, Math.max(ADAPTIVE_MIN, 250 + size * 3.5)) / speed;
       }
     }
     const timer = window.setTimeout(() => {
-      const st = useReplay.getState();
-      if (!st.range) return;
-      if (st.index >= frameCount(st.range, st.hasWorkingTree) - 1) {
-        st.setPlaying(false); // end of the replay
+      if (!range) return;
+      if (index >= frameCount(range, hasWorkingTree) - 1) {
+        setPlaying(false); // end of the replay
       } else {
-        st.setIndex(st.index + 1);
+        setIndex(index + 1);
       }
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [playing, speed, index, adaptive]);
+  }, [playing, speed, index, adaptive, range, repo, mergeParent, hasWorkingTree, setPlaying, setIndex]);
 }

@@ -1,10 +1,10 @@
 // The changed-files list for the current commit, with status glyphs, rename
 // display, and the generated/whitespace filters.
 
-import type { CommitDetail, FileChange } from "../../lib/types";
-import { basename, dirname, formatCount, isGeneratedPath } from "../../lib/format";
-import { useReplay } from "../../stores/replay";
 import { FilterIcon } from "../../components/Icons";
+import { basename, dirname, formatCount, isGeneratedPath } from "../../lib/format";
+import type { CommitDetail, FileChange } from "../../lib/types";
+import { useReplay } from "../../stores/replay";
 
 function statusClass(status: FileChange["status"]): string {
   return `status-${status}`;
@@ -15,7 +15,7 @@ function FileRow({ file, selected, onSelect }: { file: FileChange; selected: boo
   const name = basename(path);
   const dir = dirname(path);
   return (
-    <button className={`file-row ${selected ? "selected" : ""}`} onClick={onSelect} title={path}>
+    <button type="button" className={`file-row ${selected ? "selected" : ""}`} onClick={onSelect} title={path}>
       <span className={`status-dot ${statusClass(file.status)}`} />
       <span className="file-row-name">
         {file.status === "renamed" || file.status === "copied" ? (
@@ -30,13 +30,25 @@ function FileRow({ file, selected, onSelect }: { file: FileChange; selected: boo
             <span>{name}</span>
           </>
         )}
-        {file.whitespaceOnly && <span className="ws-tag" title="Whitespace-only change">ws</span>}
-        {file.binary && <span className="ws-tag" title="Binary file">bin</span>}
+        {file.whitespaceOnly && (
+          <span className="ws-tag" title="Whitespace-only change">
+            ws
+          </span>
+        )}
+        {file.binary && (
+          <span className="ws-tag" title="Binary file">
+            bin
+          </span>
+        )}
       </span>
       <span className="file-row-stats">
         {file.additions > 0 && <span className="add">+{formatCount(file.additions)}</span>}
         {file.deletions > 0 && <span className="del">−{formatCount(file.deletions)}</span>}
-        {file.similarity !== null && <span className="dim" title={`${file.similarity}% similar`}>{file.similarity}%</span>}
+        {file.similarity !== null && (
+          <span className="dim" title={`${file.similarity}% similar`}>
+            {file.similarity}%
+          </span>
+        )}
       </span>
     </button>
   );
@@ -66,7 +78,7 @@ export function ChangedFiles({ detail }: { detail: CommitDetail }) {
   }
 
   const selectedPath = selectedFile
-    ? detail.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile)?.newPath ?? null
+    ? (detail.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile)?.newPath ?? null)
     : null;
 
   return (
@@ -78,6 +90,7 @@ export function ChangedFiles({ detail }: { detail: CommitDetail }) {
         </span>
         <div className="toolbar-actions">
           <button
+            type="button"
             className={`chip ${hideWhitespaceOnly ? "on" : ""}`}
             onClick={() => set({ hideWhitespaceOnly: !hideWhitespaceOnly })}
             title="Hide whitespace-only changes"
@@ -85,6 +98,7 @@ export function ChangedFiles({ detail }: { detail: CommitDetail }) {
             ws
           </button>
           <button
+            type="button"
             className={`chip ${hideGenerated ? "on" : ""}`}
             onClick={() => set({ hideGenerated: !hideGenerated })}
             title="Hide generated files and lockfiles"

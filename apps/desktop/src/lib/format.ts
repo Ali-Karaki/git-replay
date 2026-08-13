@@ -58,22 +58,25 @@ export function dirname(path: string): string {
 
 /** Escape text for embedding in the diff renderer before highlighting. */
 export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 export function statusLabel(status: string): string {
   switch (status) {
-    case "added": return "created";
-    case "modified": return "modified";
-    case "deleted": return "deleted";
-    case "renamed": return "moved";
-    case "copied": return "copied";
-    case "typeChanged": return "type changed";
-    default: return status;
+    case "added":
+      return "created";
+    case "modified":
+      return "modified";
+    case "deleted":
+      return "deleted";
+    case "renamed":
+      return "moved";
+    case "copied":
+      return "copied";
+    case "typeChanged":
+      return "type changed";
+    default:
+      return status;
   }
 }
 
@@ -85,11 +88,20 @@ export function isLikelyImage(path: string): boolean {
 export function isGeneratedPath(path: string): boolean {
   const name = basename(path).toLowerCase();
   if (
-    name === "package-lock.json" || name === "pnpm-lock.yaml" || name === "yarn.lock" ||
-    name === "cargo.lock" || name === "composer.lock" || name === "go.sum" ||
-    name === "poetry.lock" || name === "gemfile.lock" || name === "bun.lockb" ||
-    name.endsWith(".min.js") || name.endsWith(".min.css") || name.endsWith(".map") ||
-    name.endsWith(".lock") || name.endsWith(".sum")
+    name === "package-lock.json" ||
+    name === "pnpm-lock.yaml" ||
+    name === "yarn.lock" ||
+    name === "cargo.lock" ||
+    name === "composer.lock" ||
+    name === "go.sum" ||
+    name === "poetry.lock" ||
+    name === "gemfile.lock" ||
+    name === "bun.lockb" ||
+    name.endsWith(".min.js") ||
+    name.endsWith(".min.css") ||
+    name.endsWith(".map") ||
+    name.endsWith(".lock") ||
+    name.endsWith(".sum")
   ) {
     return true;
   }

@@ -3,9 +3,23 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  BranchInfo, CacheInfo, ChatSettings, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
-  FileDiff, HeadState, PrReplay, ReplayRange, RepoInfo, SearchResult,
-  SnapshotStats, TagInfo, TreeEntry, WorkingTreeFrame,
+  BranchInfo,
+  CacheInfo,
+  ChatSettings,
+  CommitDetail,
+  CommitMeta,
+  EvolutionEntry,
+  FileAtCommit,
+  FileDiff,
+  HeadState,
+  PrReplay,
+  ReplayRange,
+  RepoInfo,
+  SearchResult,
+  SnapshotStats,
+  TagInfo,
+  TreeEntry,
+  WorkingTreeFrame,
 } from "./types";
 
 export const api = {
@@ -21,12 +35,15 @@ export const api = {
   getRecentCommits(repoId: number, limit = 300): Promise<CommitMeta[]> {
     return invoke("get_recent_commits", { repoId, limit });
   },
-  resolveReplay(repoId: number, opts: {
-    baseRef: string | null;
-    headRef: string | null;
-    useMergeBase: boolean;
-    firstParent: boolean;
-  }): Promise<ReplayRange> {
+  resolveReplay(
+    repoId: number,
+    opts: {
+      baseRef: string | null;
+      headRef: string | null;
+      useMergeBase: boolean;
+      firstParent: boolean;
+    },
+  ): Promise<ReplayRange> {
     return invoke("resolve_replay", { repoId, ...opts });
   },
   getCommitDetail(repoId: number, sha: string, parentIndex: number | null): Promise<CommitDetail> {
@@ -74,7 +91,12 @@ export const api = {
   getChatSettings(): Promise<ChatSettings> {
     return invoke("get_chat_settings");
   },
-  setChatSettings(provider: string, model: string, baseUrl: string | null, apiKey: string | null): Promise<ChatSettings> {
+  setChatSettings(
+    provider: string,
+    model: string,
+    baseUrl: string | null,
+    apiKey: string | null,
+  ): Promise<ChatSettings> {
     return invoke("set_chat_settings", { provider, model, baseUrl, apiKey });
   },
   clearChatSettings(): Promise<ChatSettings> {

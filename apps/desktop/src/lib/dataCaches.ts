@@ -40,15 +40,12 @@ function cachedValue<T>(map: Map<string, Entry<T>>, key: string): T | null {
 // keys must too — otherwise the same detail is fetched twice under "def" and
 // "0" keys, and callers that pass 0 (adaptive playback) miss entries written
 // by callers that pass null (the views).
-const detailKey = (repoId: number, sha: string, parentIndex: number | null) =>
-  `${repoId}|${sha}|${parentIndex ?? 0}`;
+const detailKey = (repoId: number, sha: string, parentIndex: number | null) => `${repoId}|${sha}|${parentIndex ?? 0}`;
 
 const details = new Map<string, Entry<CommitDetail>>();
 
 export function getCommitDetail(repoId: number, sha: string, parentIndex: number | null): Promise<CommitDetail> {
-  return cached(details, detailKey(repoId, sha, parentIndex), () =>
-    api.getCommitDetail(repoId, sha, parentIndex),
-  );
+  return cached(details, detailKey(repoId, sha, parentIndex), () => api.getCommitDetail(repoId, sha, parentIndex));
 }
 
 /** Synchronous peek — used by adaptive playback to size dwell times. */
@@ -71,9 +68,7 @@ const diffKey = (repoId: number, sha: string, parentIndex: number | null, path: 
 const diffs = new Map<string, Entry<FileDiff>>();
 
 export function getFileDiff(repoId: number, sha: string, path: string, parentIndex: number | null): Promise<FileDiff> {
-  return cached(diffs, diffKey(repoId, sha, parentIndex, path), () =>
-    api.getFileDiff(repoId, sha, path, parentIndex),
-  );
+  return cached(diffs, diffKey(repoId, sha, parentIndex, path), () => api.getFileDiff(repoId, sha, path, parentIndex));
 }
 
 // -- tree listings (content-addressed by tree sha) ------------------------------

@@ -2,13 +2,21 @@
 // language, plus Ask AI / Help / Settings in the footer. Collapses to an
 // icon-only rail; the collapsed state persists (store `sidebarCollapsed`).
 
-import { useReplay, type ViewMode } from "../../stores/replay";
-import { useChat } from "../../stores/chat";
-import { VIEWS } from "../../lib/views";
 import {
-  ChatIcon, ChevronLeftIcon, ChevronRight, DiffIcon, EvolutionIcon,
-  FolderIcon, GearIcon, HelpIcon, MapIcon, type IconProps,
+  ChatIcon,
+  ChevronLeftIcon,
+  ChevronRight,
+  DiffIcon,
+  EvolutionIcon,
+  FolderIcon,
+  GearIcon,
+  HelpIcon,
+  type IconProps,
+  MapIcon,
 } from "../../components/Icons";
+import { VIEWS } from "../../lib/views";
+import { useChat } from "../../stores/chat";
+import { useReplay, type ViewMode } from "../../stores/replay";
 
 const VIEW_ICONS: Record<ViewMode, (p: IconProps) => React.ReactNode> = {
   step: DiffIcon,
@@ -29,6 +37,7 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <button
+        type="button"
         className="btn-icon sidebar-collapse"
         onClick={() => set({ sidebarCollapsed: !collapsed })}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -41,6 +50,7 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
           const Icon = VIEW_ICONS[v.id];
           return (
             <button
+              type="button"
               key={v.id}
               className={`sidebar-item ${view === v.id && hasRange ? "active" : ""}`}
               onClick={() => setView(v.id)}
@@ -51,7 +61,9 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
               aria-current={view === v.id && hasRange ? "page" : undefined}
               title={collapsed ? `${v.label} (${v.key})` : !hasRange ? "Pick a replay first" : undefined}
             >
-              <span className="sidebar-icon"><Icon size={15} /></span>
+              <span className="sidebar-icon">
+                <Icon size={15} />
+              </span>
               <span className="sidebar-label">{v.label}</span>
               <span className="sidebar-kbd">{v.key}</span>
               <span className="sidebar-sub">{v.sub}</span>
@@ -61,31 +73,40 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
       </nav>
       <div className="sidebar-footer">
         <button
+          type="button"
           className={`sidebar-item chat-trigger ${chatOpen ? "active" : ""}`}
           onClick={() => useChat.getState().setOpen(!chatOpen)}
           title={collapsed ? "Ask AI" : undefined}
           aria-label={collapsed ? "Ask AI" : undefined}
         >
-          <span className="sidebar-icon"><ChatIcon size={15} /></span>
+          <span className="sidebar-icon">
+            <ChatIcon size={15} />
+          </span>
           <span className="sidebar-label">Ask AI</span>
         </button>
         <button
+          type="button"
           className="sidebar-item"
           onClick={onToggleCheatsheet}
           title={collapsed ? "Help (?)" : undefined}
           aria-label={collapsed ? "Help" : undefined}
         >
-          <span className="sidebar-icon"><HelpIcon size={15} /></span>
+          <span className="sidebar-icon">
+            <HelpIcon size={15} />
+          </span>
           <span className="sidebar-label">Help</span>
         </button>
         <button
+          type="button"
           className="sidebar-item"
           // setScreen (not a raw set) so playback stops while Settings is up.
           onClick={() => setScreen("settings")}
           title={collapsed ? "Settings" : undefined}
           aria-label={collapsed ? "Settings" : undefined}
         >
-          <span className="sidebar-icon"><GearIcon size={15} /></span>
+          <span className="sidebar-icon">
+            <GearIcon size={15} />
+          </span>
           <span className="sidebar-label">Settings</span>
         </button>
       </div>
