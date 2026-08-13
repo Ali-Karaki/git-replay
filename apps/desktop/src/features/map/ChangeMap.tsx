@@ -169,7 +169,16 @@ export function ChangeMap() {
       ctx.lineTo(width - 6, y + ROW_H - 1);
       ctx.stroke();
     });
-    // Cells.
+    // Cells (colors resolved once per draw, not per cell).
+    const colors = new Map<string, string>();
+    const colorOf = (status: string) => {
+      let c = colors.get(status);
+      if (!c) {
+        c = statusColor(status, css("--theme-mode", "light"));
+        colors.set(status, c);
+      }
+      return c;
+    };
     const merged = new Map<string, number>(); // `${row}:${col}` → count for stacking
     for (const cell of cells) {
       const key = `${cell.row}:${cell.col}`;
@@ -177,7 +186,7 @@ export function ChangeMap() {
       merged.set(key, k + 1);
       const x = LABEL_W + cell.col * 10 + 2;
       const y = 24 + cell.row * ROW_H + 2 + k * 2;
-      ctx.fillStyle = statusColor(cell.change.status, css("--theme-mode", "light"));
+      ctx.fillStyle = colorOf(cell.change.status);
       ctx.beginPath();
       ctx.roundRect(x, y, 6, 6, 1.5);
       ctx.fill();
