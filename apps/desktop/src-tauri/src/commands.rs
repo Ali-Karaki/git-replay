@@ -4,7 +4,7 @@
 use crate::error::AppError;
 use crate::git::types::*;
 use crate::state::AppState;
-use tauri::State;
+use tauri::{Manager, State};
 
 type Cmd<T> = Result<T, AppError>;
 
@@ -148,4 +148,31 @@ pub async fn get_cache_info(state: State<'_, AppState>) -> Cmd<CacheInfo> {
 #[tauri::command]
 pub async fn clear_cache(state: State<'_, AppState>) -> Cmd<CacheInfo> {
     block(&state, move |st| st.clear_cache()).await
+}
+
+/// The repository this app was built from — the self-test target.
+/// Only available in debug builds; returns None in release.
+#[tauri::command]
+pub async fn self_test_repo_path() -> Cmd<Option<String>> {
+    #[cfg(debug_assertions)]
+    {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        return Ok(std::fs::canonicalize(&root).ok().map(|p| p.to_string_lossy().into_owned()));
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = ();
+        Ok(None)
+    }
+}
+
+/// Persist the in-app self-test report: echoes it to stdout (captured by the
+/// dev log) and writes a copy next to the cache database.
+#[tauri::command]
+pub async fn report_self_test(app: tauri::AppHandle, report: String) -> Cmd<()> {
+    println!("SELFTEST_REPORT {report}");
+    if let Ok(dir) = app.path().app_cache_dir() {
+        let _ = std::fs::write(dir.join("selftest-report.json"), &report);
+    }
+    Ok(())
 }

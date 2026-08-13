@@ -12,6 +12,14 @@ import { ErrorPanel } from "../../components/States";
 
 type Mode = "branch" | "range" | "tags" | "pr" | "entire";
 
+/** The mode that actually yields a replay for the given repo shape: a
+ *  branch-to-branch replay only makes sense when base and head differ. */
+export function suggestInitialMode(defaultBranch: string | null, headBranch: string): "branch" | "entire" {
+  if (!headBranch) return "entire";
+  if (defaultBranch && defaultBranch !== headBranch) return "branch";
+  return "entire";
+}
+
 export function RangeSetup() {
   const repo = useReplay((s) => s.repo);
   const branches = useReplay((s) => s.branches);
@@ -40,12 +48,15 @@ export function RangeSetup() {
   const [prError, setPrError] = useState<string | null>(null);
 
   // Defaults: base = the repo's default branch, head = the checked-out branch.
+  // When both are the same (e.g. a single-branch repo like this one), a
+  // branch replay would be empty — default to the entire repository instead.
   useEffect(() => {
     if (!repo) return;
     const defaultBranch = branches.find((b) => b.isHead)?.name ?? branches[0]?.name ?? "";
     const defaultBase = repo.defaultBranch && repo.defaultBranch !== defaultBranch ? repo.defaultBranch : defaultBranch;
     setBase(defaultBase);
     setHead(defaultBranch);
+    setMode(suggestInitialMode(repo.defaultBranch, defaultBranch));
     if (tags.length >= 2) {
       setFromTag(tags[0].name);
       setToTag(tags[tags.length - 1].name);
@@ -150,6 +161,12 @@ export function RangeSetup() {
               <input type="checkbox" checked={firstParent} onChange={(e) => setFirstParent(e.target.checked)} />
               First-parent only <span className="dim">(skip merged-in branches)</span>
             </label>
+            {base && base === head && (
+              <div className="range-hint warn">
+                Base and head are the same ref — this replay would be empty. Pick a different branch,
+                turn off “start at the merge base”, or use Entire repository.
+              </div>
+            )}
           </div>
         )}
 

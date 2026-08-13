@@ -80,6 +80,17 @@ fn merge_base_of_merged_branch_is_the_merge_itself() {
 }
 
 #[test]
+fn entire_repo_resolves_from_the_root_commit() {
+    let l = linear();
+    let r = repo(&l.f);
+    // An empty base means "entire repository" (spec 9.6): root → HEAD.
+    let range = git::history::resolve_replay(&r, Some(""), None, false, false).expect("resolve");
+    assert_eq!(range.base_sha, l.c1, "base = the root commit");
+    assert_eq!(range.head_sha, l.c4);
+    assert_eq!(subjects(&range), vec!["add service", "extend a", "add tests"]);
+}
+
+#[test]
 fn first_parent_flag_prunes_side_branches() {
     let m = with_merge();
     let r = repo(&m.f);
@@ -522,6 +533,59 @@ fn big_history_stays_correct_at_scale() {
     // Ordering invariant at scale: first frame = base, last = head.
     assert_eq!(range.base_sha, b.first);
     assert_eq!(range.head_sha, b.last);
+}
+
+/// The complete open → replay sequence, run against this repository itself
+/// (the smoke test for "I opened a repo and nothing happened").
+#[test]
+fn real_repo_smoke_opens_and_replays() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let root = std::fs::canonicalize(&root).expect("repo root exists");
+    assert!(root.join(".git").exists(), "expected a git checkout at {root:?}");
+
+    let state = AppState::new(None, None);
+    let info = state.open_repository(root.to_str().unwrap()).expect("open_repository must succeed");
+    assert!(!info.path.is_empty());
+
+    // What the UI calls immediately after opening.
+    let branches = state.branches(info.id).expect("list_branches");
+    assert!(branches.iter().any(|b| b.name == "main"), "main branch present: {branches:?}");
+    let _tags = state.tags(info.id).expect("list_tags");
+    let head = state.head_state(info.id).expect("head_state");
+    assert!(!head.sha.is_empty());
+    let _recent = state.recent_commits(info.id, 200).expect("recent_commits");
+
+    // Base == head is valid git semantics and must resolve — to zero commits.
+    // merge-base(main, main) is main's tip, so the merge-base form is empty
+    // too. This is the shape the range-setup defaults must avoid (the UI now
+    // defaults single-branch repos to "Entire repository" and explains empty
+    // replays instead of showing a dead workspace).
+    let empty = state
+        .resolve_replay(info.id, Some("main".to_string()), Some("main".to_string()), false, false)
+        .expect("resolve_replay(main→main, exact) must succeed");
+    assert!(empty.commits.is_empty(), "base == head → empty replay");
+    let empty_mb = state
+        .resolve_replay(info.id, Some("main".to_string()), Some("main".to_string()), true, false)
+        .expect("resolve_replay(main→main, merge-base) must succeed");
+    assert!(empty_mb.commits.is_empty(), "merge-base of identical refs → empty replay");
+
+    // The "entire repository" flow (empty base = root) must yield the history.
+    let range = state
+        .resolve_replay(info.id, Some(String::new()), Some("main".to_string()), false, false)
+        .expect("resolve_replay(root→main) must succeed");
+    assert!(range.commits.len() > 10, "entire-repo replay has history");
+    assert_eq!(range.head_sha, info.head_sha, "head of main is HEAD");
+
+    // The first frame's detail, snapshot, and search — the workspace's calls.
+    let first = &range.commits[0];
+    let detail = state.commit_detail(info.id, &first.sha, None).expect("commit_detail");
+    assert!(!detail.files.is_empty());
+    let tree = state.tree(info.id, &range.base_sha).expect("tree at base");
+    assert!(!tree.is_empty());
+    let stats = state.snapshot_stats(info.id, &range.head_sha).expect("snapshot_stats");
+    assert!(stats.files > 10);
+    let hits = state.search(info.id, &range.base_sha, &range.head_sha, "replay", 10).expect("search");
+    assert!(!hits.is_empty(), "search finds 'replay' in this repo");
 }
 
 #[test]

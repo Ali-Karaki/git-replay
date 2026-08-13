@@ -17,9 +17,14 @@ export function Welcome() {
   const set = useReplay.setState;
 
   const pickAndOpen = async () => {
-    const dir = await open({ directory: true, title: "Open a Git repository" });
-    if (typeof dir === "string") {
-      await openRepo(dir);
+    try {
+      const dir = await open({ directory: true, title: "Open a Git repository" });
+      if (typeof dir === "string") {
+        await openRepo(dir);
+      }
+    } catch (e) {
+      // The native dialog or the open itself failing must never be silent.
+      set({ error: (e as { message?: string }).message ?? String(e), errorDetail: null });
     }
   };
 
@@ -44,6 +49,11 @@ export function Welcome() {
           <button className="btn-ghost" onClick={() => useReplay.setState({ screen: "settings" })}>
             Settings
           </button>
+          {import.meta.env.DEV && (
+            <button className="btn-ghost" onClick={() => void import("../../lib/selfTest").then((m) => m.runSelfTest())}>
+              Run self-test (dev)
+            </button>
+          )}
         </div>
         {error && (
           <ErrorPanel
