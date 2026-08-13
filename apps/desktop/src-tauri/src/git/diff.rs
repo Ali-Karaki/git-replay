@@ -2,7 +2,7 @@
 //! mode-change semantics); the frontend parses the unified format for display.
 //! diff-tree is used (not `git diff`) so root commits work via --root.
 
-use super::{literal_pathspec, lossy, run_git, Repo};
+use super::{changes::diff_parent, literal_pathspec, lossy, run_git, Repo};
 use crate::error::AppError;
 use crate::git::types::{CommitMeta, FileDiff};
 
@@ -10,11 +10,8 @@ use crate::git::types::{CommitMeta, FileDiff};
 /// Root commits diff against the empty tree (--root). Binary diffs carry no
 /// patch.
 pub fn file_diff(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>, path: &str) -> Result<FileDiff, AppError> {
-    let parent: Option<String> = if meta.parents.is_empty() {
-        None
-    } else {
-        Some(meta.parents[parent_index.unwrap_or(0)].clone())
-    };
+    // Shared helper: clamps stale parent indices instead of panicking.
+    let parent: Option<String> = diff_parent(meta, parent_index);
 
     let mut args: Vec<String> =
         vec!["diff-tree".into(), "-r".into(), "-p".into(), "--root".into(), "-M".into(), "--no-ext-diff".into(), "--no-color".into()];

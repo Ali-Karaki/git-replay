@@ -9,29 +9,23 @@ import {
 
 const SPEEDS = [0.5, 1, 2] as const;
 
-export function Transport() {
-  const range = useReplay((s) => s.range);
-  const index = useReplay((s) => s.index);
-  const playing = useReplay((s) => s.playing);
+/** Speed pill + popover: playback multiplier and the adaptive toggle. */
+function SpeedMenu() {
   const speed = useReplay((s) => s.speed);
   const adaptive = useReplay((s) => s.adaptivePlayback);
-  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
-  const setPlaying = useReplay((s) => s.setPlaying);
-  const setIndex = useReplay((s) => s.setIndex);
-  const step = useReplay((s) => s.step);
   const set = useReplay.setState;
 
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close the speed menu on outside click or Escape.
+  // Close the menu on outside click or Escape.
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -39,7 +33,56 @@ export function Transport() {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [menuOpen]);
+  }, [open]);
+
+  return (
+    <div className="speed-control" ref={menuRef}>
+      <button
+        className="speed-btn"
+        onClick={() => setOpen((o) => !o)}
+        title="Playback speed"
+        aria-label="Playback speed"
+        aria-expanded={open}
+      >
+        <SpeedIcon size={13} /> {speed}×
+      </button>
+      {open && (
+        <div className="speed-menu">
+          <div className="speed-menu-title dim">Playback speed</div>
+          {SPEEDS.map((s) => (
+            <button
+              key={s}
+              className={`speed-option ${speed === s ? "on" : ""}`}
+              onClick={() => {
+                set({ speed: s });
+                setOpen(false);
+              }}
+            >
+              {s}×
+            </button>
+          ))}
+          <button
+            className={`chip speed-adaptive ${adaptive ? "on" : ""}`}
+            role="checkbox"
+            aria-checked={adaptive}
+            onClick={() => set({ adaptivePlayback: !adaptive })}
+          >
+            Adaptive speed <span className="dim">(big commits get more time)</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Transport() {
+  const range = useReplay((s) => s.range);
+  const index = useReplay((s) => s.index);
+  const playing = useReplay((s) => s.playing);
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
+  const setPlaying = useReplay((s) => s.setPlaying);
+  const setIndex = useReplay((s) => s.setIndex);
+  const step = useReplay((s) => s.step);
 
   if (!range) return null;
   const total = frameCount(range, hasWorkingTree) - 1;
@@ -81,42 +124,7 @@ export function Transport() {
         )}
       </span>
 
-      <div className="speed-control" ref={menuRef}>
-        <button
-          className="speed-btn"
-          onClick={() => setMenuOpen((o) => !o)}
-          title="Playback speed"
-          aria-label="Playback speed"
-          aria-expanded={menuOpen}
-        >
-          <SpeedIcon size={13} /> {speed}×
-        </button>
-        {menuOpen && (
-          <div className="speed-menu">
-            <div className="speed-menu-title dim">Playback speed</div>
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                className={`speed-option ${speed === s ? "on" : ""}`}
-                onClick={() => {
-                  set({ speed: s });
-                  setMenuOpen(false);
-                }}
-              >
-                {s}×
-              </button>
-            ))}
-            <button
-              className={`chip speed-adaptive ${adaptive ? "on" : ""}`}
-              role="checkbox"
-              aria-checked={adaptive}
-              onClick={() => set({ adaptivePlayback: !adaptive })}
-            >
-              Adaptive speed <span className="dim">(big commits get more time)</span>
-            </button>
-          </div>
-        )}
-      </div>
+      <SpeedMenu />
     </div>
   );
 }

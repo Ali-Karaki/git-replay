@@ -143,7 +143,7 @@ pub(crate) fn parse_shortstat(text: &str) -> CommitStats {
 /// (diffed against the empty tree). An out-of-range parent index (e.g. a
 /// stale merge-parent selection) falls back to the first parent rather than
 /// panicking — callers must never be able to crash the engine.
-fn diff_parent(meta: &CommitMeta, parent_index: Option<usize>) -> Option<String> {
+pub(crate) fn diff_parent(meta: &CommitMeta, parent_index: Option<usize>) -> Option<String> {
     if meta.parents.is_empty() {
         None
     } else {

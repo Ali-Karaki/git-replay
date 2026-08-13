@@ -14,6 +14,23 @@ import { ErrorPanel } from "../../components/States";
 
 type Mode = "branch" | "range" | "tags" | "pr" | "entire";
 
+interface ModeCard {
+  id: Mode;
+  icon: (p: { size?: number }) => React.ReactNode;
+  title: string;
+  desc: string;
+  /** Span the full card row (used for the last, most general option). */
+  wide?: boolean;
+}
+
+const MODE_CARDS: ModeCard[] = [
+  { id: "branch", icon: BranchIcon, title: "Watch a branch", desc: "See how a branch grew — where it started to where it is now" },
+  { id: "range", icon: SwapIcon, title: "Watch a range of commits", desc: "Pick any start and end — commits, tags, or SHAs" },
+  { id: "tags", icon: TagIcon, title: "Watch between releases", desc: "How the project changed from one tag to the next" },
+  { id: "pr", icon: PrIcon, title: "Watch a pull request", desc: "Replay a GitHub PR, including its force-push history" },
+  { id: "entire", icon: FolderOpenIcon, title: "Watch everything", desc: "The full story — initial commit to HEAD", wide: true },
+];
+
 /** The mode that actually yields a replay for the given repo shape: a
  *  branch-to-branch replay only makes sense when base and head differ. */
 export function suggestInitialMode(defaultBranch: string | null, headBranch: string): "branch" | "entire" {
@@ -135,13 +152,7 @@ export function RangeSetup() {
         <h1>Replay <span className="dim">{repo.path}</span></h1>
 
         <div className="range-mode-cards" role="tablist">
-          {[
-            { id: "branch" as Mode, icon: BranchIcon, title: "Watch a branch", desc: "See how a branch grew — where it started to where it is now", wide: false },
-            { id: "range" as Mode, icon: SwapIcon, title: "Watch a range of commits", desc: "Pick any start and end — commits, tags, or SHAs", wide: false },
-            { id: "tags" as Mode, icon: TagIcon, title: "Watch between releases", desc: "How the project changed from one tag to the next", wide: false },
-            { id: "pr" as Mode, icon: PrIcon, title: "Watch a pull request", desc: "Replay a GitHub PR, including its force-push history", wide: false },
-            { id: "entire" as Mode, icon: FolderOpenIcon, title: "Watch everything", desc: "The full story — initial commit to HEAD", wide: true },
-          ].map((m) => (
+          {MODE_CARDS.map((m) => (
             <button
               key={m.id}
               role="tab"
@@ -149,7 +160,7 @@ export function RangeSetup() {
               className={`range-mode-card ${mode === m.id ? "active" : ""} ${m.wide ? "wide" : ""}`}
               onClick={() => setMode(m.id)}
             >
-              <span className="range-mode-icon">{<m.icon size={16} />}</span>
+              <span className="range-mode-icon"><m.icon size={16} /></span>
               <span>
                 <span className="range-mode-title">{m.title}</span>
                 <span className="range-mode-desc">{m.desc}</span>
