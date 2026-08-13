@@ -277,3 +277,51 @@
 .about-step p, .about-principle p { margin: 0; font-size: 12px; line-height: 1.5; }
 .about-principles { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .welcome-links { display: flex; gap: 16px; margin-top: 4px; }
+
+/* -- crash panel / warnings ------------------------------------------------------------- */
+
+.crash-panel {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 40px;
+  max-width: 640px;
+  margin: 0 auto;
+  color: var(--del);
+}
+.crash-panel h1 { margin: 4px 0 0; font-size: 20px; color: var(--text); }
+.crash-panel p { margin: 0; }
+.crash-actions { display: flex; gap: 10px; margin-top: 8px; }
+.range-hint.warn {
+  color: var(--rename);
+  border: 1px solid var(--rename);
+  background: var(--rename-faint);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+/* -- self-test overlay ------------------------------------------------------------------- */
+
+.selftest-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 10, 16, 0.5);
+  display: flex; align-items: flex-start; justify-content: center;
+  z-index: 200;
+  overflow: auto;
+}
+.selftest-card {
+  margin: 40px 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 18px 22px;
+  width: 640px;
+  max-width: 100%;
+}
+.selftest-card h2 { margin: 0 0 10px; font-size: 16px; }
+.selftest-card ul { list-style: none; margin: 0; padding: 0; }
+.selftest-card li { padding: 3px 0; font-size: 12.5px; }
+.selftest-card li b { margin-right: 6px; }
+.selftest-card li.ok b { color: var(--add); }
+.selftest-card li.fail b { color: var(--del); }
+.selftest-card .btn { margin-top: 10px; }

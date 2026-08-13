@@ -146,7 +146,15 @@ pub fn resolve_replay(
             }
         }
     } else {
-        resolve_sha(repo, base_ref.unwrap_or("HEAD"))?
+        match base_ref {
+            // An empty base means "the entire repository": replay from the
+            // root commit (spec 9.6).
+            Some(b) if !b.is_empty() => resolve_sha(repo, b)?,
+            Some(_) => root_commit(repo, &head)?,
+            // Unspecified base = HEAD (base == head → an empty replay, which
+            // the UI explains rather than pretending it has frames).
+            None => resolve_sha(repo, "HEAD")?,
+        }
     };
 
     let range = format!("{base}..{head}");

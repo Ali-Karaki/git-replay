@@ -5,12 +5,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Identity {
     pub name: String,
     pub email: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitMeta {
     pub sha: String,
     pub parents: Vec<String>,
@@ -64,6 +66,7 @@ impl FileStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileChange {
     pub old_path: Option<String>,
     pub new_path: String,
@@ -80,6 +83,7 @@ pub struct FileChange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitStats {
     pub files_changed: u32,
     pub insertions: u64,
@@ -87,6 +91,7 @@ pub struct CommitStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitDetail {
     pub meta: CommitMeta,
     pub stats: CommitStats,
@@ -94,6 +99,7 @@ pub struct CommitDetail {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BranchInfo {
     pub name: String,
     pub sha: String,
@@ -101,12 +107,14 @@ pub struct BranchInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TagInfo {
     pub name: String,
     pub sha: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoInfo {
     pub id: u32,
     pub path: String,
@@ -117,6 +125,7 @@ pub struct RepoInfo {
 
 /// A resolved replay range: `[base] + commits` are the frames, oldest first.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReplayRange {
     pub base_sha: String,
     /// Commit timestamp of the base (for timeline aggregation).
@@ -127,6 +136,7 @@ pub struct ReplayRange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TreeEntry {
     pub name: String,
     /// "blob" | "tree" | "commit" (commit = submodule).
@@ -140,6 +150,7 @@ pub struct TreeEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileDiff {
     /// Raw unified diff text (git output). None for binary files.
     pub patch: Option<String>,
@@ -156,6 +167,7 @@ pub enum FileKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileAtCommit {
     pub path: String,
     pub blob_sha: String,
@@ -172,6 +184,7 @@ pub struct FileAtCommit {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EvolutionEntry {
     pub sha: String,
     pub subject: String,
@@ -187,6 +200,7 @@ pub struct EvolutionEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SnapshotStats {
     /// Blobs + submodule entries.
     pub files: u64,
@@ -196,6 +210,7 @@ pub struct SnapshotStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub sha: String,
     pub subject: String,
@@ -205,6 +220,7 @@ pub struct SearchResult {
 /// The synthetic "Working Tree" frame: HEAD → staged + unstaged changes
 /// (spec 35). Present only while the replay's head is the repo's HEAD.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkingTreeFrame {
     pub files: Vec<FileChange>,
     pub stats: CommitStats,
@@ -213,6 +229,7 @@ pub struct WorkingTreeFrame {
 
 /// A force-pushed version of a PR (spec 20), observed via the GitHub API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PrVersion {
     /// Sequence number, 1 = oldest observed.
     pub number: usize,
@@ -225,6 +242,7 @@ pub struct PrVersion {
 
 /// A resolved PR replay: the range plus PR metadata for the header.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PrReplay {
     pub title: String,
     pub number: u64,
@@ -238,6 +256,7 @@ pub struct PrReplay {
 
 /// Lightweight HEAD identity, used for repository-change detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HeadState {
     pub sha: String,
     pub branch: Option<String>,
@@ -246,6 +265,7 @@ pub struct HeadState {
 
 /// Where the derived cache lives and how big it is (settings page).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CacheInfo {
     pub path: String,
     pub size_bytes: u64,

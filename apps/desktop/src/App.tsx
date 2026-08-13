@@ -20,9 +20,32 @@ import { SettingsPage } from "./features/settings/SettingsPage";
 import { AboutPage } from "./features/about/AboutPage";
 import { focusSearch } from "./features/search/SearchBar";
 
+/** An empty range is valid git semantics (base == head), but silently showing
+ *  a one-frame workspace reads as "nothing happened" — explain it instead. */
+function EmptyReplay() {
+  const set = useReplay.setState;
+  return (
+    <div className="empty-state">
+      <div className="empty-title">This replay has no commits</div>
+      <div className="empty-hint">
+        The base and head you selected point at the same commit, so there is nothing between them to replay.
+      </div>
+      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => set({ range: null })}>
+        Choose a different range
+      </button>
+    </div>
+  );
+}
+
 function ReplayWorkspace() {
   const view = useReplay((s) => s.view);
+  const range = useReplay((s) => s.range);
   const leftCollapsed = useReplay((s) => s.leftCollapsed);
+
+  if (range && range.commits.length === 0) {
+    return <EmptyReplay />;
+  }
+
   return (
     <div className="workspace">
       <div className="body">

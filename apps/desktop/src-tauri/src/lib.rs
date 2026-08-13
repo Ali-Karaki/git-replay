@@ -47,6 +47,8 @@ pub fn run() {
             commands::get_commit_url,
             commands::get_cache_info,
             commands::clear_cache,
+            commands::self_test_repo_path,
+            commands::report_self_test,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
