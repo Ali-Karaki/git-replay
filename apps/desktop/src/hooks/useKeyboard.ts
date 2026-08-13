@@ -66,6 +66,9 @@ export function useKeyboard(opts: {
         case "3":
           s.setView("evolution");
           break;
+        case "4":
+          s.setView("map");
+          break;
         case "/":
           e.preventDefault();
           onFocusSearch();

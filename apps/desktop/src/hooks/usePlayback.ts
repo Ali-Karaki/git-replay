@@ -1,28 +1,45 @@
 // Playback clock: advances frames on a timer while playing. Manual stepping
 // always wins — any index change resets the timer.
+//
+// Adaptive mode (spec 8) sizes the dwell time from the commit's stats when
+// they're already cached: a tiny commit flashes by, a substantial one pauses.
+// With nothing cached it falls back to the fixed rate.
 
 import { useEffect } from "react";
-import { useReplay } from "../stores/replay";
+import { getCachedCommitDetail } from "../lib/dataCaches";
+import { frameCount, useReplay } from "../stores/replay";
 
 const BASE_MS = 900;
+const ADAPTIVE_MIN = 350;
+const ADAPTIVE_MAX = 4000;
 
 export function usePlayback() {
   const playing = useReplay((s) => s.playing);
   const speed = useReplay((s) => s.speed);
   const index = useReplay((s) => s.index);
+  const adaptive = useReplay((s) => s.adaptivePlayback);
 
   useEffect(() => {
     if (!playing) return;
-    const delay = BASE_MS / speed;
+    let delay = BASE_MS / speed;
+    const s = useReplay.getState();
+    if (adaptive && s.range && s.repo && s.index > 0 && s.index <= s.range.commits.length) {
+      const commit = s.range.commits[s.index - 1];
+      const detail = getCachedCommitDetail(s.repo.id, commit.sha, s.mergeParent);
+      if (detail) {
+        const size = detail.stats.filesChanged * 6 + detail.stats.insertions + detail.stats.deletions;
+        delay = Math.min(ADAPTIVE_MAX, Math.max(ADAPTIVE_MIN, 250 + size * 3.5)) / speed;
+      }
+    }
     const timer = window.setTimeout(() => {
-      const s = useReplay.getState();
-      if (!s.range) return;
-      if (s.index >= s.range.commits.length) {
-        s.setPlaying(false); // end of the replay
+      const st = useReplay.getState();
+      if (!st.range) return;
+      if (st.index >= frameCount(st.range, st.hasWorkingTree) - 1) {
+        st.setPlaying(false); // end of the replay
       } else {
-        s.setIndex(s.index + 1);
+        st.setIndex(st.index + 1);
       }
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [playing, speed, index]);
+  }, [playing, speed, index, adaptive]);
 }

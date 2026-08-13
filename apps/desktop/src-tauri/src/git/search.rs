@@ -74,6 +74,24 @@ pub fn search_replay(repo: &Repo, base: &str, head: &str, query: &str, limit: u3
         }
     }
 
+    // Content matches (pickaxe): commits where the query string appeared or
+    // vanished. Only for queries long enough to be meaningful.
+    if query.chars().count() >= 3 {
+        let args: Vec<&str> = vec![
+            "log",
+            "-z",
+            "--topo-order",
+            "--format=%H%x1f%s%x1f%ct",
+            &range,
+            "-S",
+            query,
+        ];
+        let out = run_git(&repo.path, &args).map_err(|e| AppError::git("search failed", e))?;
+        for (sha, subject, ts) in parse_log_short(&out) {
+            push(sha, subject, ts);
+        }
+    }
+
     results.truncate(limit);
     Ok(results)
 }

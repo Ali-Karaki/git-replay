@@ -9,10 +9,18 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
+/// Cached working-tree directory map: (repo_id, HEAD sha) → dir → entries.
+#[derive(Default)]
+struct WtCache {
+    key: Option<(u32, String)>,
+    dirs: HashMap<String, Vec<TreeEntry>>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     repos: Arc<Mutex<HashMap<u32, Repo>>>,
     cache: Arc<Mutex<Option<CacheStore>>>,
+    wt_cache: Arc<Mutex<WtCache>>,
     next_repo_id: Arc<AtomicU32>,
 }
 
@@ -21,6 +29,7 @@ impl AppState {
         Self {
             repos: Arc::new(Mutex::new(HashMap::new())),
             cache: Arc::new(Mutex::new(cache)),
+            wt_cache: Arc::new(Mutex::new(WtCache::default())),
             next_repo_id: Arc::new(AtomicU32::new(1)),
         }
     }
@@ -142,6 +151,10 @@ impl AppState {
 
     pub fn tree(&self, repo_id: u32, treeish: &str) -> Result<Vec<TreeEntry>, AppError> {
         let repo = self.repo(repo_id)?;
+        // Working-tree listings are synthesized from the index (spec 35).
+        if let Some(dir) = treeish.strip_prefix("wt:") {
+            return self.working_tree_dir(&repo, dir);
+        }
         // Resolve to a tree SHA first so the cache key is content-addressed.
         // (`rev:path^{tree}` is not valid git syntax — peel in two steps.)
         let out = git::run_git(&repo.path, &["rev-parse", "--verify", treeish])
@@ -164,6 +177,10 @@ impl AppState {
 
     pub fn file_at_commit(&self, repo_id: u32, sha: &str, path: &str) -> Result<FileAtCommit, AppError> {
         let repo = self.repo(repo_id)?;
+        // Working-tree frame: index version for tracked, disk for untracked.
+        if sha == "WORKTREE" {
+            return self.working_file(&repo, path);
+        }
         // Blob contents are cached by blob SHA, so resolve first.
         let spec = format!("{sha}:{path}");
         let out = git::run_git(&repo.path, &["rev-parse", "--verify", &spec]).map_err(|e| {
@@ -218,6 +235,177 @@ impl AppState {
     pub fn search(&self, repo_id: u32, base: &str, head: &str, query: &str, limit: u32) -> Result<Vec<SearchResult>, AppError> {
         let repo = self.repo(repo_id)?;
         git::search::search_replay(&repo, base, head, query, limit)
+    }
+
+    // -- working tree (spec 35) ------------------------------------------------------
+
+    pub fn working_tree_frame(&self, repo_id: u32) -> Result<WorkingTreeFrame, AppError> {
+        let repo = self.repo(repo_id)?;
+        git::working_tree::working_tree_frame(&repo)
+    }
+
+    pub fn working_file_diff(&self, repo_id: u32, path: &str) -> Result<FileDiff, AppError> {
+        let repo = self.repo(repo_id)?;
+        git::working_tree::working_file_diff(&repo, path)
+    }
+
+    /// Working-tree directory listing for `dir` ("" = root), synthesized from
+    /// the index (`ls-files --stage`) plus untracked files. Cached per
+    /// (repo, HEAD) since the index only changes with the checkout.
+    fn working_tree_dir(&self, repo: &Repo, dir: &str) -> Result<Vec<TreeEntry>, AppError> {
+        let head = git::run_git(&repo.path, &["rev-parse", "HEAD"])
+            .map_err(|e| AppError::git("could not read HEAD", e))?;
+        let head = git::trim_line(&git::lossy(&head)).to_string();
+        let mut guard = self.wt_cache.lock().expect("wt cache poisoned");
+        if guard.key.as_ref() != Some(&(repo.id, head.clone())) {
+            guard.dirs = build_wt_dirs(repo)?;
+            guard.key = Some((repo.id, head));
+        }
+        Ok(guard.dirs.get(dir).cloned().unwrap_or_default())
+    }
+
+    /// File content in the working tree: index version for tracked paths
+    /// (`git rev-parse :path`), disk content for untracked ones.
+    fn working_file(&self, repo: &Repo, path: &str) -> Result<FileAtCommit, AppError> {
+        if let Some(blob_sha) = git::working_tree::index_blob_sha(repo, path)? {
+            let out = git::run_git(&repo.path, &["cat-file", "-s", &blob_sha])
+                .map_err(|e| AppError::git("could not read file size", e))?;
+            let size: u64 = git::trim_line(&git::lossy(&out)).parse().unwrap_or(0);
+            let data = git::snapshot::blob_data(repo, &blob_sha)?;
+            if let Some(cache) = self.cache().as_ref() {
+                cache.put_blob(repo.id, &blob_sha, &data, size);
+            }
+            return Ok(file_from_bytes(path, &blob_sha, data, size));
+        }
+        // Untracked: read from disk.
+        let data = std::fs::read(repo.path.join(path)).map_err(|e| AppError::io("could not read file", e))?;
+        let size = data.len() as u64;
+        Ok(file_from_bytes(path, "", data, size))
+    }
+
+    // -- head state / change detection (spec 34) ---------------------------------------
+
+    pub fn head_state(&self, repo_id: u32) -> Result<HeadState, AppError> {
+        let repo = self.repo(repo_id)?;
+        git::working_tree::head_state(&repo)
+    }
+
+    // -- pull requests (spec 9.4, 20) ---------------------------------------------------
+
+    pub fn resolve_pr(&self, repo_id: u32, input: &str, version: Option<&str>) -> Result<PrReplay, AppError> {
+        let repo = self.repo(repo_id)?;
+        git::pr::resolve_pr(&repo, input, version)
+    }
+
+    pub fn commit_url(&self, repo_id: u32, sha: &str) -> Result<Option<String>, AppError> {
+        let repo = self.repo(repo_id)?;
+        Ok(git::pr::commit_url(&repo, sha))
+    }
+}
+
+/// Build the flat working-tree file list and group it into a nested
+/// directory map (dir path → immediate entries, dirs included).
+fn build_wt_dirs(repo: &Repo) -> Result<HashMap<String, Vec<TreeEntry>>, AppError> {
+    // Index files: "<mode> <sha> <stage>\t<path>".
+    let staged = git::run_git(&repo.path, &["ls-files", "--stage", "-z"])
+        .map_err(|e| AppError::git("could not read the index", e))?;
+    let mut flat: Vec<(String, String, String)> = Vec::new(); // (path, mode, sha)
+    for row in staged.split(|&b| b == 0) {
+        if row.is_empty() {
+            continue;
+        }
+        let Some((head, path)) = split_tab(row) else { continue };
+        let parts: Vec<&[u8]> = head.split(|&b| b == b' ').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        flat.push((git::lossy(path), git::lossy(parts[0]), git::lossy(parts[1])));
+    }
+    // Untracked files: no mode/sha.
+    let untracked = git::run_git(&repo.path, &["ls-files", "--others", "--exclude-standard", "-z"])
+        .map_err(|e| AppError::git("could not list untracked files", e))?;
+    for path in untracked.split(|&b| b == 0) {
+        if path.is_empty() {
+            continue;
+        }
+        let path = git::lossy(path);
+        if !flat.iter().any(|(p, _, _)| p == &path) {
+            flat.push((path, "100644".to_string(), String::new()));
+        }
+    }
+
+    // Nested map.
+    let mut dirs: HashMap<String, Vec<TreeEntry>> = HashMap::new();
+    dirs.insert(String::new(), Vec::new());
+    for (path, mode, sha) in flat {
+        let mut parts: Vec<&str> = path.split('/').collect();
+        let name = parts.pop().unwrap_or_default();
+        // Register every ancestor directory as an entry of its parent.
+        let mut current = String::new();
+        for part in &parts {
+            let dir_entries = dirs.entry(current.clone()).or_default();
+            let dir_key = if current.is_empty() { (*part).to_string() } else { format!("{current}/{part}") };
+            if !dir_entries.iter().any(|e| e.name == *part && e.kind == "tree") {
+                dir_entries.push(TreeEntry {
+                    name: (*part).to_string(),
+                    kind: "tree".into(),
+                    mode: "040000".into(),
+                    size: 0,
+                    object: format!("wt:{dir_key}"),
+                });
+            }
+            current = dir_key;
+        }
+        let dir_entries = dirs.entry(current.clone()).or_default();
+        if !dir_entries.iter().any(|e| e.name == name) {
+            dir_entries.push(TreeEntry {
+                name: name.to_string(),
+                kind: if mode.starts_with("160000") { "commit".into() } else { "blob".into() },
+                mode: mode.clone(),
+                size: 0,
+                object: if mode.starts_with("160000") { sha } else { String::new() },
+            });
+        }
+    }
+    // Sort each dir: dirs first, then names.
+    for entries in dirs.values_mut() {
+        entries.sort_by(|a, b| {
+            let ak = if a.kind == "tree" { 0 } else { 1 };
+            let bk = if b.kind == "tree" { 0 } else { 1 };
+            ak.cmp(&bk).then_with(|| a.name.cmp(&b.name))
+        });
+    }
+    Ok(dirs)
+}
+
+fn split_tab(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
+    bytes.iter().position(|&b| b == b'\t').map(|i| (&bytes[..i], &bytes[i + 1..]))
+}
+
+/// Wrap raw bytes into the `FileAtCommit` shape (mode/symlink/binary sniff).
+fn file_from_bytes(path: &str, blob_sha: &str, data: Vec<u8>, size: u64) -> FileAtCommit {
+    use base64::Engine;
+    if git::is_binary(&data) {
+        return FileAtCommit {
+            path: path.to_string(),
+            blob_sha: blob_sha.to_string(),
+            size,
+            kind: FileKind::Binary,
+            content: None,
+            content_base64: Some(base64::engine::general_purpose::STANDARD.encode(&data)),
+            symlink_target: None,
+            submodule_sha: None,
+        };
+    }
+    FileAtCommit {
+        path: path.to_string(),
+        blob_sha: blob_sha.to_string(),
+        size,
+        kind: FileKind::Text,
+        content: Some(git::lossy(&data)),
+        content_base64: None,
+        symlink_target: None,
+        submodule_sha: None,
     }
 }
 

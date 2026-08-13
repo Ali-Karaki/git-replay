@@ -17,7 +17,7 @@ export interface CommitMeta {
   body: string;
 }
 
-export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "typeChanged";
+export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "typeChanged" | "untracked";
 
 export interface FileChange {
   oldPath: string | null;
@@ -121,4 +121,32 @@ export interface AppError {
   kind: string;
   message: string;
   detail: string | null;
+}
+
+export interface WorkingTreeFrame {
+  files: FileChange[];
+  stats: CommitStats;
+  untracked: number;
+}
+
+export interface PrVersion {
+  number: number;
+  afterSha: string;
+  beforeSha: string | null;
+  createdAt: number | null;
+}
+
+export interface PrReplay {
+  title: string;
+  number: number;
+  url: string;
+  range: ReplayRange;
+  versions: PrVersion[];
+  resolvedVersion: number | null;
+}
+
+export interface HeadState {
+  sha: string;
+  branch: string | null;
+  dirty: boolean;
 }

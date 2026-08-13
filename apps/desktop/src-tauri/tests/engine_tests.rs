@@ -359,3 +359,104 @@ fn search_finds_message_and_path_matches() {
     assert!(by_path.iter().any(|h| h.sha == l.c4), "path match on a.test.ts");
     assert!(git::search::search_replay(&r, &l.c1, &l.c4, "", 10).expect("empty").is_empty());
 }
+
+#[test]
+fn search_pickaxe_finds_content_introductions() {
+    let l = linear();
+    let r = repo(&l.f);
+    // "Service" is introduced in c2 (src/service.ts).
+    let hits = git::search::search_replay(&r, &l.c1, &l.c4, "Service", 10).expect("search");
+    assert!(hits.iter().any(|h| h.sha == l.c2), "pickaxe should find where Service appeared: {hits:?}");
+    // Short queries skip pickaxe (noise), so "a" only matches paths/messages.
+    let _ = git::search::search_replay(&r, &l.c1, &l.c4, "a", 10).expect("search");
+}
+
+// -- working tree (spec 35) ------------------------------------------------------
+
+#[test]
+fn working_tree_frame_matches_git_diff() {
+    let l = linear();
+    let r = repo(&l.f);
+    // Modify a tracked file, stage a delete, add an untracked file.
+    write(&l.f.dir, "src/a.ts", "export const a = 42;\n");
+    std::fs::remove_file(l.f.dir.join("src/service.ts")).expect("rm");
+    write(&l.f.dir, "notes.txt", "scratch notes\n");
+
+    let frame = git::working_tree::working_tree_frame(&r).expect("frame");
+    let modified = frame.files.iter().find(|f| f.new_path == "src/a.ts").expect("modified a.ts");
+    assert_eq!(modified.status, FileStatus::Modified);
+    let deleted = frame.files.iter().find(|f| f.new_path == "src/service.ts").expect("deleted service.ts");
+    assert_eq!(deleted.status, FileStatus::Deleted);
+    let untracked = frame.files.iter().find(|f| f.new_path == "notes.txt").expect("untracked notes.txt");
+    assert_eq!(untracked.status, FileStatus::Untracked);
+    assert_eq!(frame.untracked, 1);
+
+    // Stats agree with git's own shortstat (computed by hand here: a.ts is
+    // 1 add + 2 del, service.ts is 1 del).
+    assert_eq!(frame.stats.files_changed, 2);
+    assert_eq!(frame.stats.insertions, 1);
+    assert_eq!(frame.stats.deletions, 3);
+}
+
+#[test]
+fn working_file_diff_matches_git_and_synthesizes_untracked() {
+    let l = linear();
+    let r = repo(&l.f);
+    write(&l.f.dir, "src/a.ts", "export const a = 99;\n");
+    write(&l.f.dir, "fresh.ts", "brand new\n");
+
+    let tracked = git::working_tree::working_file_diff(&r, "src/a.ts").expect("tracked diff");
+    let expected = fixtures::run_git(&l.f.dir, &["diff", "HEAD", "--no-ext-diff", "--no-color", "-M", "--", "src/a.ts"]);
+    assert_eq!(tracked.patch.unwrap(), String::from_utf8(expected).expect("utf8"));
+
+    let fresh = git::working_tree::working_file_diff(&r, "fresh.ts").expect("untracked diff");
+    let patch = fresh.patch.expect("synthesized patch");
+    assert!(patch.contains("new file mode"), "patch: {patch}");
+    assert!(patch.contains("+brand new"), "patch: {patch}");
+}
+
+#[test]
+fn working_tree_listing_includes_untracked_dirs() {
+    let l = linear();
+    let r = repo(&l.f);
+    write(&l.f.dir, "scratch/one.ts", "1\n");
+    write(&l.f.dir, "scratch/two.ts", "2\n");
+
+    let state = AppState::new(None);
+    let info = state.open_repository(l.f.dir.to_str().unwrap()).expect("open");
+    let root = state.tree(info.id, "wt:").expect("wt root");
+    assert!(root.iter().any(|e| e.name == "scratch" && e.kind == "tree"), "untracked dir listed");
+    let scratch = state.tree(info.id, "wt:scratch").expect("wt scratch");
+    assert_eq!(scratch.iter().filter(|e| e.kind == "blob").count(), 2);
+    // Index version for tracked files: file_at_commit with the WORKTREE marker.
+    let file = state.file_at_commit(info.id, "WORKTREE", "src/a.ts").expect("index file");
+    assert_eq!(file.kind, FileKind::Text);
+}
+
+// -- detached HEAD -------------------------------------------------------------------
+
+#[test]
+fn detached_head_resolves_and_lists_branches_without_head_flag() {
+    let l = linear();
+    let r = repo(&l.f);
+    fixtures::checkout(&l.f.dir, &l.c2);
+    assert_eq!(git::history::head_branch(&r).expect("head branch"), None);
+    let branches = git::history::list_branches(&r).expect("branches");
+    assert!(!branches.iter().any(|b| b.is_head), "no branch should be HEAD when detached");
+    let range = git::history::resolve_replay(&r, None, None, false, false).expect("resolve");
+    assert_eq!(range.head_sha, l.c2, "HEAD resolves to the detached commit");
+    assert!(range.commits.is_empty(), "base == head → empty replay");
+}
+
+#[test]
+fn head_state_reports_sha_branch_and_dirt() {
+    let l = linear();
+    let r = repo(&l.f);
+    let hs = git::working_tree::head_state(&r).expect("head state");
+    assert_eq!(hs.sha, l.c4);
+    assert_eq!(hs.branch.as_deref(), Some("main"));
+    assert!(!hs.dirty);
+    write(&l.f.dir, "src/a.ts", "export const a = 1;\n// dirty\n");
+    let hs = git::working_tree::head_state(&r).expect("head state");
+    assert!(hs.dirty);
+}

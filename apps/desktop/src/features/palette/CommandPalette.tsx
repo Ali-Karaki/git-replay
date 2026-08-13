@@ -48,6 +48,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       cmds.push({ id: "view-step", label: `Step view${s.view === "step" ? " (current)" : ""}`, hint: "1", run: () => s.setView("step") });
       cmds.push({ id: "view-snapshot", label: `Snapshot view${s.view === "snapshot" ? " (current)" : ""}`, hint: "2", run: () => s.setView("snapshot") });
       cmds.push({ id: "view-evolution", label: `File evolution view${s.view === "evolution" ? " (current)" : ""}`, hint: "3", run: () => s.setView("evolution") });
+      cmds.push({ id: "view-map", label: `Change map view${s.view === "map" ? " (current)" : ""}`, hint: "4", run: () => s.setView("map") });
+      if (s.hasWorkingTree) {
+        cmds.push({ id: "go-wt", label: "Go to Working Tree frame", run: () => s.setIndex(s.range!.commits.length + 1) });
+      }
+      cmds.push({ id: "chapters", label: `${s.groupChapters ? "Hide" : "Show"} timeline chapters`, run: () => set({ groupChapters: !s.groupChapters }) });
+      cmds.push({ id: "adaptive", label: `${s.adaptivePlayback ? "Disable" : "Enable"} adaptive playback`, run: () => set({ adaptivePlayback: !s.adaptivePlayback }) });
       cmds.push({
         id: "diff-mode",
         label: `Toggle ${s.diffMode === "unified" ? "split" : "unified"} diff`,

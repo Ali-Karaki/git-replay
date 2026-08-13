@@ -97,7 +97,8 @@ function TreeChildren({ treeish, prefix, changes, depth }: {
 export function FileTree({ changes }: { changes: FileChange[] }) {
   const range = useReplay((s) => s.range);
   const index = useReplay((s) => s.index);
-  const sha = range ? frameSha(range, index) : null;
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
+  const sha = range ? frameSha(range, index, hasWorkingTree) : null;
   const changeMap = useMemo(() => {
     const m = new Map<string, FileChange>();
     for (const c of changes) m.set(c.newPath, c);
@@ -107,7 +108,7 @@ export function FileTree({ changes }: { changes: FileChange[] }) {
   if (!sha) return null;
   return (
     <div className="file-tree">
-      <TreeChildren treeish={sha} prefix="" changes={changeMap} depth={0} />
+      <TreeChildren treeish={sha === "WORKTREE" ? "wt:" : sha} prefix="" changes={changeMap} depth={0} />
     </div>
   );
 }

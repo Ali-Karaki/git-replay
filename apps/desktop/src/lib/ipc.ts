@@ -4,7 +4,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   BranchInfo, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
-  FileDiff, ReplayRange, RepoInfo, SearchResult, SnapshotStats, TagInfo, TreeEntry,
+  FileDiff, HeadState, PrReplay, ReplayRange, RepoInfo, SearchResult,
+  SnapshotStats, TagInfo, TreeEntry, WorkingTreeFrame,
 } from "./types";
 
 export const api = {
@@ -48,5 +49,20 @@ export const api = {
   },
   searchReplay(repoId: number, base: string, head: string, query: string, limit = 50): Promise<SearchResult[]> {
     return invoke("search_replay", { repoId, base, head, query, limit });
+  },
+  getWorkingTree(repoId: number): Promise<WorkingTreeFrame> {
+    return invoke("get_working_tree", { repoId });
+  },
+  getWorkingFileDiff(repoId: number, path: string): Promise<FileDiff> {
+    return invoke("get_working_file_diff", { repoId, path });
+  },
+  getHeadState(repoId: number): Promise<HeadState> {
+    return invoke("get_head_state", { repoId });
+  },
+  resolvePrReplay(repoId: number, pr: string, version: string | null): Promise<PrReplay> {
+    return invoke("resolve_pr_replay", { repoId, pr, version });
+  },
+  getCommitUrl(repoId: number, sha: string): Promise<string | null> {
+    return invoke("get_commit_url", { repoId, sha });
   },
 };

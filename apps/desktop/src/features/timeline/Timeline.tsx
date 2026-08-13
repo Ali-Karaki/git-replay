@@ -2,9 +2,10 @@
 // per-commit marks when they fit, day-bucket aggregation when they don't
 // (ADR-0004). Dragging scrubs the playhead; the data is already prefetched.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "../../lib/format";
 import { useReplay } from "../../stores/replay";
+import type { ReplayRange } from "../../lib/types";
 import { ZoomInIcon, ZoomOutIcon } from "../../components/Icons";
 
 const PAD = 16;
@@ -32,8 +33,53 @@ function cssVar(name: string, fallback: string): string {
   return v || fallback;
 }
 
-function buildLayout(range: NonNullable<ReturnType<typeof useReplay.getState>["range"]>, width: number, zoom: number | "fit"): Layout {
-  const n = range.commits.length; // frames = n + 1
+/** Heuristic chapters (spec 21): an alternate timeline presentation, never a
+ *  replacement for the raw commits — clicking a chapter jumps to its start. */
+interface Chapter {
+  start: number;
+  title: string;
+}
+
+function computeChapters(range: ReplayRange, hasWt: boolean): Chapter[] {
+  const chapters: Chapter[] = [{ start: 0, title: "Base" }];
+  const prefixOf = (c: ReplayRange["commits"][0]): string | null => {
+    const m = c.subject.match(/^(\w+)(\([^)]*\))?:/);
+    return m ? m[1].toLowerCase() : null;
+  };
+  const titleOf = (c: ReplayRange["commits"][0]): string => {
+    const p = prefixOf(c);
+    if (p) return p[0].toUpperCase() + p.slice(1);
+    if (c.parents.length > 1) return "Merge";
+    const words = c.subject.split(/\s+/).slice(0, 3).join(" ");
+    return words.length > 26 ? words.slice(0, 26) + "…" : words;
+  };
+  for (let i = 1; i <= range.commits.length; i++) {
+    const c = range.commits[i - 1];
+    const prev = range.commits[i - 2];
+    let startNew: boolean;
+    if (!prev) {
+      startNew = true;
+    } else {
+      const timeGap = c.commitTs - prev.commitTs > 3 * 86_400;
+      const p1 = prefixOf(prev);
+      const p2 = prefixOf(c);
+      const prefixChange = !!p1 && !!p2 && p1 !== p2;
+      const afterMerge = prev.parents.length > 1;
+      startNew = timeGap || prefixChange || afterMerge;
+    }
+    if (startNew) chapters.push({ start: i, title: titleOf(c) });
+  }
+  if (hasWt) chapters.push({ start: range.commits.length + 1, title: "Working Tree" });
+  return chapters;
+}
+
+function buildLayout(
+  range: ReplayRange,
+  hasWt: boolean,
+  width: number,
+  zoom: number | "fit",
+): Layout {
+  const n = range.commits.length + (hasWt ? 1 : 0); // frames = n + 1
   const usable = width - PAD * 2;
   let pxPer = zoom === "fit" ? usable / Math.max(n, 1) : zoom;
   const aggregated = pxPer < MIN_PX_PER_COMMIT;
@@ -49,10 +95,12 @@ function buildLayout(range: NonNullable<ReturnType<typeof useReplay.getState>["r
     };
   }
 
-  // Day buckets over frames 0..n (frame 0 uses the base commit's date).
+  // Day buckets over frames 0..n (frame 0 uses the base commit's date; the
+  // working-tree frame lands in today's bucket).
   const DAY = 86_400;
   const frames: Array<{ ts: number; index: number }> = [{ ts: range.baseTs, index: 0 }];
   range.commits.forEach((c, i) => frames.push({ ts: c.commitTs, index: i + 1 }));
+  if (hasWt) frames.push({ ts: Math.floor(Date.now() / 1000), index: range.commits.length + 1 });
   const byDay = new Map<number, DayBucket>();
   for (const f of frames) {
     const day = Math.floor(f.ts / DAY);
@@ -93,8 +141,14 @@ export function Timeline() {
   const range = useReplay((s) => s.range);
   const index = useReplay((s) => s.index);
   const zoom = useReplay((s) => s.timelineZoom);
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
+  const groupChapters = useReplay((s) => s.groupChapters);
   const setIndex = useReplay((s) => s.setIndex);
   const setTimelineZoom = useReplay((s) => s.setTimelineZoom);
+
+  const chapters = useMemo(() => (range ? computeChapters(range, hasWorkingTree) : []), [range, hasWorkingTree]);
+  const totalFrames = range ? range.commits.length + 1 + (hasWorkingTree ? 1 : 0) : 0;
+  const n = totalFrames - 1;
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -108,14 +162,14 @@ export function Timeline() {
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
-    const layout = buildLayout(range, width, zoom);
+    const layout = buildLayout(range, hasWorkingTree, width, zoom);
     const cy = HEIGHT / 2;
     const node = cssVar("--tl-node", "#4a5162");
     const accent = cssVar("--accent", "#4f7dff");
     const merge = cssVar("--tl-merge", "#8a5cf6");
+    const add = cssVar("--add", "#3fb950");
     const axis = cssVar("--border", "#262a33");
     const text = cssVar("--text-dim", "#9aa2af");
-    const n = range.commits.length;
 
     ctx.clearRect(0, 0, width, HEIGHT);
     ctx.strokeStyle = axis;
@@ -125,9 +179,11 @@ export function Timeline() {
     ctx.lineTo(width - PAD, cy);
     ctx.stroke();
 
-    const isMerge = (frameIdx: number) => frameIdx > 0 && range.commits[frameIdx - 1].parents.length > 1;
+    const isMerge = (frameIdx: number) =>
+      frameIdx > 0 && frameIdx <= range.commits.length && range.commits[frameIdx - 1].parents.length > 1;
+    const isWt = (frameIdx: number) => hasWorkingTree && frameIdx === range.commits.length + 1;
 
-    const drawNode = (x: number, opts: { current?: boolean; merge?: boolean; base?: boolean; head?: boolean }) => {
+    const drawNode = (x: number, opts: { current?: boolean; merge?: boolean; base?: boolean; head?: boolean; wt?: boolean }) => {
       ctx.beginPath();
       if (opts.current) {
         ctx.arc(x, cy, 6, 0, Math.PI * 2);
@@ -138,10 +194,15 @@ export function Timeline() {
         ctx.fillStyle = cssVar("--bg", "#101216");
         ctx.fill();
       } else {
-        ctx.arc(x, cy, opts.base || opts.head ? 4.5 : 3.2, 0, Math.PI * 2);
+        ctx.arc(x, cy, opts.base || opts.head || opts.wt ? 4.5 : 3.2, 0, Math.PI * 2);
         if (opts.merge) {
           ctx.fillStyle = merge;
           ctx.fill();
+        } else if (opts.wt) {
+          ctx.fillStyle = "transparent";
+          ctx.strokeStyle = add;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
         } else if (opts.base || opts.head) {
           ctx.fillStyle = "transparent";
           ctx.strokeStyle = node;
@@ -196,7 +257,25 @@ export function Timeline() {
           merge: isMerge(i),
           base: i === 0,
           head: i === n,
+          wt: isWt(i),
         });
+      }
+      // Chapter separators (alternate presentation — raw marks stay visible).
+      if (groupChapters && stepX >= 10) {
+        for (const ch of chapters) {
+          if (ch.start === 0) continue;
+          const x = layout.xOf(ch.start);
+          ctx.strokeStyle = axis;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(x, 6);
+          ctx.lineTo(x, HEIGHT - 16);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = text;
+          ctx.font = "10px ui-sans-serif, system-ui";
+          ctx.fillText(ch.title, x + 4, 12);
+        }
       }
       drawPlayhead(layout.xOf(index));
       if (stepX >= 26) {
@@ -204,6 +283,7 @@ export function Timeline() {
         ctx.font = "10px ui-sans-serif, system-ui";
         ctx.fillText("BASE", PAD - 2, 12);
         ctx.fillText("HEAD", width - PAD - 20, 12);
+        if (hasWorkingTree) ctx.fillText("WT", layout.xOf(n) + 6, 12);
       }
     }
 
@@ -218,7 +298,7 @@ export function Timeline() {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-  }, [range, index, zoom, hoverIdx]);
+  }, [range, index, zoom, hoverIdx, hasWorkingTree, groupChapters, chapters, n]);
 
   useEffect(() => {
     const raf = requestAnimationFrame(redraw);
@@ -238,13 +318,11 @@ export function Timeline() {
 
   if (!range) return null;
 
-  const n = range.commits.length;
-
   const frameAtPoint = (clientX: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return 0;
     const rect = canvas.getBoundingClientRect();
-    const layout = buildLayout(range, rect.width, zoom);
+    const layout = buildLayout(range, hasWorkingTree, rect.width, zoom);
     const idx = layout.frameAt(clientX - rect.left);
     return Math.min(Math.max(idx, 0), n);
   };
@@ -253,11 +331,19 @@ export function Timeline() {
     const idx = frameAtPoint(e.clientX);
     setHoverIdx(idx);
     const rect = canvasRef.current!.getBoundingClientRect();
-    const title = idx === 0 ? "BASE" : range.commits[idx - 1].subject;
-    const text =
-      idx === 0
-        ? "Starting point"
-        : `Commit ${idx} / ${n} · ${formatDateTime(range.commits[idx - 1].commitTs)} · ${range.commits[idx - 1].sha.slice(0, 7)}`;
+    let title: string;
+    let text: string;
+    if (idx === 0) {
+      title = "BASE";
+      text = "Starting point";
+    } else if (hasWorkingTree && idx === range.commits.length + 1) {
+      title = "Working Tree";
+      text = "Uncommitted changes vs HEAD";
+    } else {
+      const commit = range.commits[idx - 1];
+      title = commit.subject;
+      text = `Commit ${idx} / ${range.commits.length} · ${formatDateTime(commit.commitTs)} · ${commit.sha.slice(0, 7)}`;
+    }
     setTooltip({ x: e.clientX - rect.left, text, title });
     if (dragState.current.dragging) {
       setIndex(idx);
@@ -300,6 +386,13 @@ export function Timeline() {
         </div>
       )}
       <div className="timeline-zoom">
+        <button
+          className={`chip ${groupChapters ? "on" : ""}`}
+          onClick={() => useReplay.setState({ groupChapters: !groupChapters })}
+          title="Group commits into chapters (alternate view — raw commits stay visible)"
+        >
+          chapters
+        </button>
         <button className="btn-icon" onClick={zoomOut} title="Zoom out (fit when far)" aria-label="Zoom out"><ZoomOutIcon size={13} /></button>
         <button className="btn-icon" onClick={() => setTimelineZoom("fit")} title="Fit to width" aria-label="Fit to width"
           style={{ fontSize: 10, fontWeight: 600, minWidth: 22 }}>{zoom === "fit" ? "≡" : `${Math.round(zoom)}px`}</button>

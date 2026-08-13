@@ -8,10 +8,12 @@ import { ErrorPanel } from "../../components/States";
 
 export function Welcome() {
   const openRepo = useReplay((s) => s.openRepo);
+  const resumeSession = useReplay((s) => s.resumeSession);
   const recentRepos = useReplay((s) => s.recentRepos);
   const busy = useReplay((s) => s.busy);
   const error = useReplay((s) => s.error);
   const errorDetail = useReplay((s) => s.errorDetail);
+  const session = useReplay((s) => s.session);
   const set = useReplay.setState;
 
   const pickAndOpen = async () => {
@@ -30,6 +32,11 @@ export function Welcome() {
         <button className="btn btn-primary btn-large" onClick={pickAndOpen} disabled={busy}>
           <FolderIcon size={15} /> {busy ? "Opening…" : "Open repository"}
         </button>
+        {session && (
+          <button className="btn" onClick={() => void resumeSession()} disabled={busy}>
+            Resume last replay <span className="dim">({session.repoPath.split(/[\\/]/).pop()})</span>
+          </button>
+        )}
         {error && (
           <ErrorPanel
             error={{ message: error, detail: errorDetail }}

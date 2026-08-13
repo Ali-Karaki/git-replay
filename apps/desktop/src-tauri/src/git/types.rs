@@ -33,6 +33,8 @@ pub enum FileStatus {
     Renamed,
     Copied,
     TypeChanged,
+    /// A file that exists only in the working tree (working-tree frame).
+    Untracked,
 }
 
 impl FileStatus {
@@ -56,6 +58,7 @@ impl FileStatus {
             FileStatus::Renamed => "moved",
             FileStatus::Copied => "copied",
             FileStatus::TypeChanged => "type changed",
+            FileStatus::Untracked => "untracked",
         }
     }
 }
@@ -197,4 +200,46 @@ pub struct SearchResult {
     pub sha: String,
     pub subject: String,
     pub commit_ts: i64,
+}
+
+/// The synthetic "Working Tree" frame: HEAD → staged + unstaged changes
+/// (spec 35). Present only while the replay's head is the repo's HEAD.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkingTreeFrame {
+    pub files: Vec<FileChange>,
+    pub stats: CommitStats,
+    pub untracked: usize,
+}
+
+/// A force-pushed version of a PR (spec 20), observed via the GitHub API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrVersion {
+    /// Sequence number, 1 = oldest observed.
+    pub number: usize,
+    /// SHA of the version's head commit.
+    pub after_sha: String,
+    /// SHA of the previous head (None for the first observed version).
+    pub before_sha: Option<String>,
+    pub created_at: Option<i64>,
+}
+
+/// A resolved PR replay: the range plus PR metadata for the header.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrReplay {
+    pub title: String,
+    pub number: u64,
+    pub url: String,
+    pub range: ReplayRange,
+    /// Force-push versions, oldest first (includes the current head as last).
+    pub versions: Vec<PrVersion>,
+    /// The version this replay was resolved at (None = current head).
+    pub resolved_version: Option<usize>,
+}
+
+/// Lightweight HEAD identity, used for repository-change detection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadState {
+    pub sha: String,
+    pub branch: Option<String>,
+    pub dirty: bool,
 }
