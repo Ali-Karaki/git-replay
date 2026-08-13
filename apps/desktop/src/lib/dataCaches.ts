@@ -7,22 +7,31 @@ import type { CommitDetail, FileAtCommit, FileDiff, TreeEntry } from "./types";
 
 interface Entry<T> {
   promise: Promise<T>;
+  value?: T;
 }
 
 function cached<T>(map: Map<string, Entry<T>>, key: string, load: () => Promise<T>): Promise<T> {
   const hit = map.get(key);
   if (hit) return hit.promise;
+  const entry: Entry<T> = { promise: Promise.resolve(undefined as unknown as T) };
   const promise = load()
     .then((v) => {
-      map.set(key, { promise: Promise.resolve(v) });
+      entry.value = v;
+      entry.promise = Promise.resolve(v);
       return v;
     })
     .catch((e) => {
       map.delete(key); // don't cache failures
       throw e;
     });
-  map.set(key, { promise });
+  entry.promise = promise;
+  map.set(key, entry);
   return promise;
+}
+
+function cachedValue<T>(map: Map<string, Entry<T>>, key: string): T | null {
+  const entry = map.get(key);
+  return entry?.value ?? null;
 }
 
 // -- commit details ----------------------------------------------------------
@@ -36,6 +45,11 @@ export function getCommitDetail(repoId: number, sha: string, parentIndex: number
   return cached(details, detailKey(repoId, sha, parentIndex), () =>
     api.getCommitDetail(repoId, sha, parentIndex),
   );
+}
+
+/** Synchronous peek — used by adaptive playback to size dwell times. */
+export function getCachedCommitDetail(repoId: number, sha: string, parentIndex: number | null): CommitDetail | null {
+  return cachedValue(details, detailKey(repoId, sha, parentIndex));
 }
 
 /** Fire-and-forget prefetch for adjacent frames. */

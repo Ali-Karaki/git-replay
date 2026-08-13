@@ -11,9 +11,11 @@ pub mod changes;
 pub mod diff;
 pub mod evolution;
 pub mod history;
+pub mod pr;
 pub mod search;
 pub mod snapshot;
 pub mod types;
+pub mod working_tree;
 
 use crate::error::GitFailure;
 use std::ffi::OsStr;

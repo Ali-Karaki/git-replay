@@ -10,6 +10,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // The SQLite cache is acceleration only — if it cannot be opened,
             // the app keeps working (invariant: cache loss never loses data).
@@ -38,6 +39,11 @@ pub fn run() {
             commands::get_file_evolution,
             commands::get_snapshot_stats,
             commands::search_replay,
+            commands::get_working_tree,
+            commands::get_working_file_diff,
+            commands::get_head_state,
+            commands::resolve_pr_replay,
+            commands::get_commit_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

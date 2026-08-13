@@ -6,6 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { getFileAtCommit } from "../../lib/dataCaches";
 import { useData } from "../../lib/useData";
 import { formatBytes, isLikelyImage } from "../../lib/format";
+import { renderMarkdown } from "../../lib/markdown";
 import { langForPath } from "../../lib/langs";
 import { highlightLines } from "../../lib/highlight";
 import { frameSha, useReplay } from "../../stores/replay";
@@ -18,6 +19,9 @@ function TextFile({ file, path }: { file: FileAtCommit; path: string }) {
   const lang = langForPath(path);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [wrap, setWrap] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const isMarkdown = /\.(md|markdown|mdown)$/i.test(path);
+  const previewHtml = useMemo(() => (isMarkdown ? renderMarkdown(file.content ?? "") : ""), [isMarkdown, file.content]);
 
   const virtualizer = useVirtualizer({
     count: lines.length,
@@ -47,12 +51,29 @@ function TextFile({ file, path }: { file: FileAtCommit; path: string }) {
     };
   }, [lang, lines, start, end, windowKey]);
 
+  if (preview && isMarkdown) {
+    return (
+      <div className="file-viewer">
+        <div className="diff-toolbar">
+          <span className="diff-path">{path}</span>
+          <span className="dim">{formatBytes(file.size)}</span>
+          <span className="spacer" />
+          <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>preview</button>
+        </div>
+        <div className="md-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+      </div>
+    );
+  }
+
   return (
     <div className="file-viewer">
       <div className="diff-toolbar">
         <span className="diff-path">{path}</span>
         <span className="dim">{formatBytes(file.size)} · {lines.length} lines</span>
         <span className="spacer" />
+        {isMarkdown && (
+          <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>preview</button>
+        )}
         <button className={`chip ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>wrap</button>
       </div>
       <div ref={parentRef} className={`file-scroll ${wrap ? "wrap" : ""}`}>
@@ -93,9 +114,10 @@ export function FileViewer() {
   const repo = useReplay((s) => s.repo);
   const range = useReplay((s) => s.range);
   const index = useReplay((s) => s.index);
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
   const selectedFile = useReplay((s) => s.selectedFile);
   const setView = useReplay((s) => s.setView);
-  const sha = range ? frameSha(range, index) : null;
+  const sha = range ? frameSha(range, index, hasWorkingTree) : null;
 
   const file = useData(
     repo && sha && selectedFile ? `${repo.id}|${sha}|${selectedFile}` : null,

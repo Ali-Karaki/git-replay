@@ -10,10 +10,10 @@ use crate::git::types::{CommitDetail, CommitStats, CommitMeta, FileChange, FileS
 
 /// One parsed `--name-status` record (status letter + paths).
 pub(crate) struct RawNameStatus {
-    status: FileStatus,
-    similarity: Option<u8>,
-    old_path: Option<String>,
-    new_path: String,
+    pub(crate) status: FileStatus,
+    pub(crate) similarity: Option<u8>,
+    pub(crate) old_path: Option<String>,
+    pub(crate) new_path: String,
 }
 
 /// Parse `git diff-tree -r --name-status -z` output:

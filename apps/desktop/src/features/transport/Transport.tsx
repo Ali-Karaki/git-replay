@@ -1,6 +1,6 @@
 // Transport controls: first/prev/play-pause/next/last + speed + position.
 
-import { useReplay } from "../../stores/replay";
+import { frameCount, useReplay } from "../../stores/replay";
 import { FirstIcon, LastIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "../../components/Icons";
 
 export function Transport() {
@@ -8,14 +8,16 @@ export function Transport() {
   const index = useReplay((s) => s.index);
   const playing = useReplay((s) => s.playing);
   const speed = useReplay((s) => s.speed);
+  const adaptive = useReplay((s) => s.adaptivePlayback);
+  const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
   const setPlaying = useReplay((s) => s.setPlaying);
   const setIndex = useReplay((s) => s.setIndex);
   const step = useReplay((s) => s.step);
 
   if (!range) return null;
-  const n = range.commits.length;
+  const total = frameCount(range, hasWorkingTree) - 1;
   const atStart = index === 0;
-  const atEnd = index >= n;
+  const atEnd = index >= total;
 
   return (
     <div className="transport">
@@ -32,7 +34,7 @@ export function Transport() {
       <button className="btn-icon" onClick={() => step(1)} disabled={atEnd} title="Next commit (→)" aria-label="Next commit">
         <NextIcon />
       </button>
-      <button className="btn-icon" onClick={() => setIndex(n)} disabled={atEnd} title="Last frame (End)" aria-label="Last frame">
+      <button className="btn-icon" onClick={() => setIndex(total)} disabled={atEnd} title="Last frame (End)" aria-label="Last frame">
         <LastIcon />
       </button>
 
@@ -48,8 +50,23 @@ export function Transport() {
         <option value={2}>2×</option>
       </select>
 
+      <button
+        className={`chip ${adaptive ? "on" : ""}`}
+        onClick={() => useReplay.setState({ adaptivePlayback: !adaptive })}
+        title="Adaptive playback: small commits flash by, substantial ones pause"
+      >
+        adaptive
+      </button>
+
       <span className="transport-position">
-        {index === 0 ? <span className="dim">Base</span> : <strong>Commit {index}</strong>} <span className="dim">/ {n}</span>
+        {index === 0 ? (
+          <span className="dim">Base</span>
+        ) : index === total && hasWorkingTree ? (
+          <strong>Working Tree</strong>
+        ) : (
+          <strong>Commit {index}</strong>
+        )}{" "}
+        <span className="dim">/ {total}</span>
       </span>
     </div>
   );

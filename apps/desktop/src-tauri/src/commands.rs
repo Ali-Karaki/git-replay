@@ -109,3 +109,33 @@ pub async fn search_replay(
 ) -> Cmd<Vec<SearchResult>> {
     block(&state, move |st| st.search(repo_id, &base, &head, &query, limit.unwrap_or(50))).await
 }
+
+#[tauri::command]
+pub async fn get_working_tree(state: State<'_, AppState>, repo_id: u32) -> Cmd<WorkingTreeFrame> {
+    block(&state, move |st| st.working_tree_frame(repo_id)).await
+}
+
+#[tauri::command]
+pub async fn get_working_file_diff(state: State<'_, AppState>, repo_id: u32, path: String) -> Cmd<FileDiff> {
+    block(&state, move |st| st.working_file_diff(repo_id, &path)).await
+}
+
+#[tauri::command]
+pub async fn get_head_state(state: State<'_, AppState>, repo_id: u32) -> Cmd<HeadState> {
+    block(&state, move |st| st.head_state(repo_id)).await
+}
+
+#[tauri::command]
+pub async fn resolve_pr_replay(
+    state: State<'_, AppState>,
+    repo_id: u32,
+    pr: String,
+    version: Option<String>,
+) -> Cmd<PrReplay> {
+    block(&state, move |st| st.resolve_pr(repo_id, &pr, version.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn get_commit_url(state: State<'_, AppState>, repo_id: u32, sha: String) -> Cmd<Option<String>> {
+    block(&state, move |st| st.commit_url(repo_id, &sha)).await
+}

@@ -1,21 +1,23 @@
-// Configure what to replay: branch (merge-base aware), explicit commit
-// range, or the entire repository (spec 9).
+// Configure what to replay: branch (merge-base aware), commit range, tags /
+// releases, a GitHub pull request (with force-push versions), or the entire
+// repository (spec 9).
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/ipc";
 import { useReplay } from "../../stores/replay";
 import { formatDateTime, shortSha } from "../../lib/format";
-import type { CommitMeta } from "../../lib/types";
-import { BranchIcon, TagIcon } from "../../components/Icons";
+import type { CommitMeta, PrReplay } from "../../lib/types";
+import { BranchIcon, ClockIcon, TagIcon } from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
 
-type Mode = "branch" | "range" | "entire";
+type Mode = "branch" | "range" | "tags" | "pr" | "entire";
 
 export function RangeSetup() {
   const repo = useReplay((s) => s.repo);
   const branches = useReplay((s) => s.branches);
   const tags = useReplay((s) => s.tags);
   const configureRange = useReplay((s) => s.configureRange);
+  const resolvePr = useReplay((s) => s.resolvePr);
   const busy = useReplay((s) => s.busy);
   const error = useReplay((s) => s.error);
   const errorDetail = useReplay((s) => s.errorDetail);
@@ -26,9 +28,16 @@ export function RangeSetup() {
   const [head, setHead] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [fromTag, setFromTag] = useState("");
+  const [toTag, setToTag] = useState("");
   const [useMergeBase, setUseMergeBase] = useState(true);
   const [firstParent, setFirstParent] = useState(false);
   const [recent, setRecent] = useState<CommitMeta[]>([]);
+  // PR mode state.
+  const [prInput, setPrInput] = useState("");
+  const [prMeta, setPrMeta] = useState<PrReplay | null>(null);
+  const [prVersion, setPrVersion] = useState<string | null>(null);
+  const [prError, setPrError] = useState<string | null>(null);
 
   // Defaults: base = the repo's default branch, head = the checked-out branch.
   useEffect(() => {
@@ -37,8 +46,12 @@ export function RangeSetup() {
     const defaultBase = repo.defaultBranch && repo.defaultBranch !== defaultBranch ? repo.defaultBranch : defaultBranch;
     setBase(defaultBase);
     setHead(defaultBranch);
+    if (tags.length >= 2) {
+      setFromTag(tags[0].name);
+      setToTag(tags[tags.length - 1].name);
+    }
     api.getRecentCommits(repo.id, 200).then(setRecent).catch(() => undefined);
-  }, [repo, branches]);
+  }, [repo, branches, tags]);
 
   const refOptions = useMemo(() => {
     const out: string[] = [];
@@ -55,13 +68,33 @@ export function RangeSetup() {
   if (!repo) return null;
 
   const start = () => {
+    set({ error: null, errorDetail: null });
     if (mode === "branch") {
       void configureRange(base || null, head || null, useMergeBase, firstParent);
     } else if (mode === "range") {
       void configureRange(from || null, to || null, false, false);
+    } else if (mode === "tags") {
+      void configureRange(fromTag || null, toTag || null, false, false);
+    } else if (mode === "pr") {
+      void resolvePr(prInput, prVersion);
     } else {
       // Entire repository: empty base resolves to the root commit.
       void configureRange("", null, false, firstParent);
+    }
+  };
+
+  const loadPr = async () => {
+    setPrError(null);
+    setPrMeta(null);
+    setPrVersion(null);
+    if (!prInput.trim()) return;
+    try {
+      const pr = await api.resolvePrReplay(repo.id, prInput.trim(), null);
+      setPrMeta(pr);
+      setPrVersion(null);
+    } catch (e) {
+      const err = e as { message?: string; detail?: string | null };
+      setPrError(err.message ?? String(e));
     }
   };
 
@@ -76,6 +109,12 @@ export function RangeSetup() {
           </button>
           <button role="tab" aria-selected={mode === "range"} className={`chip big ${mode === "range" ? "on" : ""}`} onClick={() => setMode("range")}>
             Commit range
+          </button>
+          <button role="tab" aria-selected={mode === "tags"} className={`chip big ${mode === "tags" ? "on" : ""}`} onClick={() => setMode("tags")}>
+            <TagIcon size={13} /> Tags / releases
+          </button>
+          <button role="tab" aria-selected={mode === "pr"} className={`chip big ${mode === "pr" ? "on" : ""}`} onClick={() => setMode("pr")}>
+            Pull request
           </button>
           <button role="tab" aria-selected={mode === "entire"} className={`chip big ${mode === "entire" ? "on" : ""}`} onClick={() => setMode("entire")}>
             Entire repository
@@ -134,6 +173,80 @@ export function RangeSetup() {
           </div>
         )}
 
+        {mode === "tags" && (
+          <div className="range-form">
+            {tags.length === 0 ? (
+              <div className="dim range-hint">This repository has no tags yet.</div>
+            ) : (
+              <>
+                <label>
+                  From
+                  <select value={fromTag} onChange={(e) => setFromTag(e.target.value)}>
+                    {tags.map((t) => (
+                      <option key={t.name} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <span className="range-arrow dim">→</span>
+                <label>
+                  To
+                  <select value={toTag} onChange={(e) => setToTag(e.target.value)}>
+                    {tags.map((t) => (
+                      <option key={t.name} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="dim range-hint">See how the project evolved between releases.</div>
+              </>
+            )}
+          </div>
+        )}
+
+        {mode === "pr" && (
+          <div className="range-form pr-form">
+            <label>
+              Pull request
+              <input
+                value={prInput}
+                onChange={(e) => setPrInput(e.target.value)}
+                placeholder="#482 or https://github.com/org/repo/pull/482"
+                onKeyDown={(e) => e.key === "Enter" && void loadPr()}
+              />
+            </label>
+            <button className="btn" onClick={() => void loadPr()} disabled={busy || !prInput.trim()}>
+              Load
+            </button>
+            {prMeta && (
+              <>
+                <div className="pr-meta">
+                  <span className="pr-title">{prMeta.title}</span>
+                  <span className="dim">
+                    base {shortSha(prMeta.range.baseSha)} · head {shortSha(prMeta.range.headSha)} · {prMeta.range.commits.length} commits
+                  </span>
+                </div>
+                {prMeta.versions.length > 1 && (
+                  <label className="pr-versions">
+                    Version
+                    <select value={prVersion ?? ""} onChange={(e) => setPrVersion(e.target.value || null)}>
+                      {prMeta.versions.map((v) => (
+                        <option key={v.number} value={v.afterSha}>
+                          {v.number === prMeta.versions.length ? "Current" : `Force-push ${v.number}`}
+                          {v.number !== prMeta.versions.length ? ` · ${shortSha(v.afterSha)}` : ""}
+                          {v.createdAt ? ` · ${formatDateTime(v.createdAt)}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </>
+            )}
+            {prError && <div className="range-error">{prError}</div>}
+            <div className="dim range-hint">
+              Uses the <code>gh</code> CLI when available (private repos + force-push history); public repos work via git fetch alone.
+            </div>
+          </div>
+        )}
+
         {mode === "entire" && (
           <div className="range-form">
             <label className="checkbox">
@@ -145,15 +258,20 @@ export function RangeSetup() {
         )}
 
         <div className="range-actions">
-          <button className="btn btn-primary" onClick={start} disabled={busy}>
+          <button className="btn btn-primary" onClick={start} disabled={busy || (mode === "pr" && !prMeta)}>
             {busy ? "Resolving…" : "Replay"}
           </button>
           <button className="btn" onClick={() => set({ repo: null, range: null, error: null, errorDetail: null })}>
             Open another repository
           </button>
-          {tags.length > 0 && (
+          {tags.length > 0 && mode !== "tags" && (
             <span className="dim range-tags">
-              <TagIcon size={12} /> {tags.map((t) => t.name).join(", ")}
+              <TagIcon size={12} /> {tags.slice(0, 8).map((t) => t.name).join(", ")}{tags.length > 8 ? "…" : ""}
+            </span>
+          )}
+          {mode === "branch" && (
+            <span className="dim range-tags">
+              <ClockIcon size={12} /> Playback: manual steps always work; Space plays
             </span>
           )}
         </div>
