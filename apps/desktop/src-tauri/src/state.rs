@@ -6,7 +6,6 @@ use crate::error::{AppError, ErrorKind};
 use crate::git::types::*;
 use crate::git::{self, Repo};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -144,7 +143,11 @@ impl AppState {
     pub fn tree(&self, repo_id: u32, treeish: &str) -> Result<Vec<TreeEntry>, AppError> {
         let repo = self.repo(repo_id)?;
         // Resolve to a tree SHA first so the cache key is content-addressed.
-        let out = git::run_git(&repo.path, &["rev-parse", "--verify", &format!("{treeish}^{{tree}}")])
+        // (`rev:path^{tree}` is not valid git syntax — peel in two steps.)
+        let out = git::run_git(&repo.path, &["rev-parse", "--verify", treeish])
+            .map_err(|e| AppError::git("could not read the directory tree", e))?;
+        let resolved = git::trim_line(&git::lossy(&out)).to_string();
+        let out = git::run_git(&repo.path, &["rev-parse", "--verify", &format!("{resolved}^{{tree}}")])
             .map_err(|e| AppError::git("could not read the directory tree", e))?;
         let tree_sha = git::trim_line(&git::lossy(&out)).to_string();
         if let Some(cache) = self.cache().as_ref() {

@@ -59,7 +59,8 @@ pub fn run_git_env(dir: &Path, args: &[&str], envs: &[(&str, &str)]) -> Vec<u8> 
 pub fn init() -> Fixture {
     let tmp = tempfile::tempdir().expect("tempdir");
     run_git(tmp.path(), &["init", "-q", "-b", "main"]);
-    Fixture { _tmp: tmp, dir: tmp.path().to_path_buf() }
+    let dir = tmp.path().to_path_buf();
+    Fixture { _tmp: tmp, dir }
 }
 
 pub fn write(dir: &Path, rel: &str, content: &str) {
@@ -85,6 +86,14 @@ pub fn sha(dir: &Path) -> String {
 
 pub fn commit(dir: &Path, msg: &str) -> String {
     run_git(dir, &["add", "-A"]);
+    run_git(dir, &["commit", "-q", "-m", msg]);
+    sha(dir)
+}
+
+/// Commit the index as-is, without `git add -A` — required for entries
+/// staged via `update-index --cacheinfo` (gitlinks/symlinks have no worktree
+/// files, and `add -A` would stage their deletion).
+pub fn commit_index(dir: &Path, msg: &str) -> String {
     run_git(dir, &["commit", "-q", "-m", msg]);
     sha(dir)
 }
@@ -160,6 +169,30 @@ pub fn linear() -> Linear {
     Linear { f, c1, c2, c3, c4 }
 }
 
+/// A feature branch off main, never merged — the classic branch replay shape.
+pub struct Branch {
+    pub f: Fixture,
+    pub base: String,
+    pub feat1: String,
+    pub feat2: String,
+    pub main_extra: String,
+}
+
+pub fn with_branch() -> Branch {
+    let f = init();
+    write(&f.dir, "base.ts", "export const base = 0;\n");
+    let base = commit(&f.dir, "base");
+    checkout_b(&f.dir, "feature");
+    write(&f.dir, "feature.ts", "export const feature = 1;\n");
+    let feat1 = commit(&f.dir, "feat one");
+    write(&f.dir, "feature2.ts", "export const feature2 = 2;\n");
+    let feat2 = commit(&f.dir, "feat two");
+    checkout(&f.dir, "main");
+    write(&f.dir, "main_extra.ts", "export const extra = 3;\n");
+    let main_extra = commit(&f.dir, "main work");
+    Branch { f, base, feat1, feat2, main_extra }
+}
+
 /// main → feature (2 commits) → main advances → --no-ff merge.
 pub struct Merge {
     pub f: Fixture,
@@ -186,9 +219,11 @@ pub fn with_merge() -> Merge {
     Merge { f, base, feat1, feat2, main_extra, merge }
 }
 
-/// A file created, then renamed (+modified), then modified again.
+/// A file created, then renamed (+modified), then modified again. An initial
+/// commit exists so replay ranges can include the creation.
 pub struct Rename {
     pub f: Fixture,
+    pub init: String,
     pub create: String,
     pub rename: String,
     pub modify: String,
@@ -196,6 +231,8 @@ pub struct Rename {
 
 pub fn with_rename() -> Rename {
     let f = init();
+    write(&f.dir, "README.md", "# repo\n");
+    let init = commit(&f.dir, "init");
     let content = "line 1\nline 2\nline 3\nline 4\nline 5\n";
     write(&f.dir, "worker.ts", content);
     let create = commit(&f.dir, "create worker");
@@ -204,7 +241,7 @@ pub fn with_rename() -> Rename {
     let rename = commit(&f.dir, "rename and extend worker");
     write(&f.dir, "deployment-worker.ts", &format!("{content}line 6\nline 7\n"));
     let modify = commit(&f.dir, "extend worker again");
-    Rename { f, create, rename, modify }
+    Rename { f, init, create, rename, modify }
 }
 
 /// Text plus binary content in one commit.
@@ -288,11 +325,14 @@ pub struct Special {
 }
 
 /// Symlink entry (mode 120000) + gitlink (mode 160000) via update-index.
+/// A base commit exists first: update-index --cacheinfo needs a real HEAD.
 pub fn with_special_entries() -> Special {
     let f = init();
+    write(&f.dir, "base.txt", "base\n");
+    commit(&f.dir, "base commit");
     add_symlink_entry(&f.dir, "link.txt", "target.txt");
     add_gitlink(&f.dir, "vendor/lib");
-    let c1 = commit(&f.dir, "add symlink and submodule");
+    let c1 = commit_index(&f.dir, "add symlink and submodule");
     Special { f, c1 }
 }
 

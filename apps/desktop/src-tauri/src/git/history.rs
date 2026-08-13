@@ -11,8 +11,6 @@ use crate::git::types::{BranchInfo, CommitMeta, Identity, ReplayRange, RepoInfo,
 /// `git log -z --format=...`: one record per commit, NUL-separated,
 /// fields separated by US (0x1f).
 const LOG_FORMAT: &str = "%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%s%x1f%b";
-/// Short variant used by search.
-const LOG_FORMAT_SHORT: &str = "%H%x1f%s%x1f%ct";
 const FIELD_SEP: char = '\x1f';
 
 /// Parse NUL-separated `git log -z` output produced with `LOG_FORMAT`.
@@ -159,7 +157,8 @@ pub fn resolve_replay(
     extra.push(&range);
     let mut metas = log_metas(repo, &extra)?;
     metas.reverse(); // oldest first: frames are [base] + commits
-    Ok(ReplayRange { base_sha: base, head_sha: head, commits: metas })
+    let base_ts = log_metas(repo, &["-n", "1", &base])?.first().map(|m| m.commit_ts).unwrap_or(0);
+    Ok(ReplayRange { base_sha: base, base_ts, head_sha: head, commits: metas })
 }
 
 /// Recent commits across all refs — feeds the commit picker.
@@ -176,14 +175,16 @@ pub fn list_branches(repo: &Repo) -> Result<Vec<BranchInfo>, AppError> {
     )
     .map_err(|e| AppError::git("could not list branches", e))?;
     let text = lossy(&out);
-    let fields: Vec<&str> = text.split('\0').collect();
+    // for-each-ref appends a newline after each ref's format output, so both
+    // NUL and LF are field separators here.
+    let fields: Vec<&str> = text.split(|c| c == '\0' || c == '\n').collect();
     let mut branches = Vec::with_capacity(fields.len() / 3);
     for chunk in fields.chunks(3) {
-        if chunk.len() == 3 {
+        if chunk.len() == 3 && !chunk[0].trim().is_empty() {
             branches.push(BranchInfo {
-                name: chunk[0].to_string(),
+                name: chunk[0].trim().to_string(),
                 sha: chunk[1].trim().to_string(),
-                is_head: chunk[2] == "*",
+                is_head: chunk[2].trim() == "*",
             });
         }
     }
@@ -197,13 +198,13 @@ pub fn list_tags(repo: &Repo) -> Result<Vec<TagInfo>, AppError> {
     )
     .map_err(|e| AppError::git("could not list tags", e))?;
     let text = lossy(&out);
-    let fields: Vec<&str> = text.split('\0').collect();
+    let fields: Vec<&str> = text.split(|c| c == '\0' || c == '\n').collect();
     let mut tags = Vec::with_capacity(fields.len() / 3);
     for chunk in fields.chunks(3) {
-        if chunk.len() == 3 {
+        if chunk.len() == 3 && !chunk[0].trim().is_empty() {
             // Prefer the peeled target (annotated tags), fall back to the tag object.
             let sha = if chunk[1].trim().is_empty() { chunk[2].trim() } else { chunk[1].trim() };
-            tags.push(TagInfo { name: chunk[0].to_string(), sha: sha.to_string() });
+            tags.push(TagInfo { name: chunk[0].trim().to_string(), sha: sha.to_string() });
         }
     }
     Ok(tags)

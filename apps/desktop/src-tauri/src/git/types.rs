@@ -116,6 +116,8 @@ pub struct RepoInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayRange {
     pub base_sha: String,
+    /// Commit timestamp of the base (for timeline aggregation).
+    pub base_ts: i64,
     pub head_sha: String,
     /// Topologically ordered, oldest first. Excludes the base commit.
     pub commits: Vec<CommitMeta>,

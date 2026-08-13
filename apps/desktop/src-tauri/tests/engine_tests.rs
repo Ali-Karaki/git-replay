@@ -38,19 +38,20 @@ fn linear_range_returns_commits_oldest_first() {
 
 #[test]
 fn branch_replay_resolves_merge_base() {
-    let m = with_merge();
-    let r = repo(&m.f);
+    let b = with_branch();
+    let r = repo(&b.f);
     let range = git::history::resolve_replay(&r, Some("main"), Some("feature"), true, false).expect("resolve");
-    assert_eq!(range.base_sha, m.base, "Frame 0 must be the merge base");
+    assert_eq!(range.base_sha, b.base, "Frame 0 must be the merge base");
     assert_eq!(subjects(&range), vec!["feat one", "feat two"]);
+    assert_eq!(range.head_sha, b.feat2);
 }
 
 #[test]
 fn full_range_includes_merged_branch_and_merge_commit() {
     let m = with_merge();
     let r = repo(&m.f);
-    let range = git::history::resolve_replay(&r, Some("main"), Some(&m.merge), false, false).expect("resolve");
-    // Everything reachable from the merge that main did not have.
+    // Base = main before the merge; head = the merge itself.
+    let range = git::history::resolve_replay(&r, Some(&m.main_extra), Some(&m.merge), false, false).expect("resolve");
     assert_eq!(range.commits.len(), 3);
     assert_eq!(range.commits[0].sha, m.feat1);
     assert_eq!(range.commits[1].sha, m.feat2);
@@ -58,10 +59,21 @@ fn full_range_includes_merged_branch_and_merge_commit() {
 }
 
 #[test]
+fn merge_base_of_merged_branch_is_the_merge_itself() {
+    // Once feature is merged into main, merge-base(main, feature) = feature's
+    // tip — the replay is empty. Correct semantics, worth pinning.
+    let m = with_merge();
+    let r = repo(&m.f);
+    let range = git::history::resolve_replay(&r, Some("main"), Some("feature"), true, false).expect("resolve");
+    assert_eq!(range.base_sha, m.feat2);
+    assert!(range.commits.is_empty());
+}
+
+#[test]
 fn first_parent_flag_prunes_side_branches() {
     let m = with_merge();
     let r = repo(&m.f);
-    let range = git::history::resolve_replay(&r, Some("main"), Some(&m.merge), false, true).expect("resolve");
+    let range = git::history::resolve_replay(&r, Some(&m.main_extra), Some(&m.merge), false, true).expect("resolve");
     assert_eq!(range.commits.len(), 1, "first-parent walk skips the feature commits");
     assert_eq!(range.commits[0].sha, m.merge);
 }
@@ -73,7 +85,7 @@ fn merge_commit_compares_first_parent_by_default_and_second_on_request() {
     let m = with_merge();
     let r = repo(&m.f);
     let meta = git::history::log_metas(&r, &["-n", "1", &m.merge]).expect("meta").remove(0);
-    assert_eq!(meta.parents.len(), 2);
+    assert_eq!(meta.parents, vec![m.main_extra.clone(), m.feat2.clone()], "first parent = main, second = feature");
 
     // Default: diff against the first parent (main) → feature files appear added.
     let detail = git::changes::commit_detail(&r, &meta, None).expect("detail");
@@ -147,6 +159,11 @@ fn rename_detection_reports_old_and_new_paths() {
 fn copy_detection_reports_copies() {
     let c = with_copy();
     let r = repo(&c.f);
+    // The source file started as a plain addition.
+    let meta1 = git::history::log_metas(&r, &["-n", "1", &c.c1]).expect("meta").remove(0);
+    let d1 = git::changes::commit_detail(&r, &meta1, None).expect("detail");
+    assert!(d1.files.iter().any(|f| f.new_path == "a.ts" && f.status == FileStatus::Added));
+    // Then it was modified and copied in the same commit.
     let meta = git::history::log_metas(&r, &["-n", "1", &c.c2]).expect("meta").remove(0);
     let detail = git::changes::commit_detail(&r, &meta, None).expect("detail");
     let file = detail.files.iter().find(|f| f.new_path == "b.ts").expect("copied file present");
@@ -163,7 +180,7 @@ fn binary_files_are_flagged() {
     let png = detail.files.iter().find(|f| f.new_path == "assets/image.png").expect("png present");
     assert!(png.binary, "binary file must be flagged");
     let txt = detail.files.iter().find(|f| f.new_path == "notes.txt").expect("txt present");
-    assert!(!txt.binary);
+    assert!(!txt.binary, "txt flagged binary — files: {:#?}", detail.files);
 }
 
 // -- snapshots match git -------------------------------------------------------
@@ -172,16 +189,29 @@ fn binary_files_are_flagged() {
 fn snapshot_tree_matches_git() {
     let l = linear();
     let r = repo(&l.f);
-    let entries = git::snapshot::tree_entries(&r, &l.c4).expect("tree");
-    let blobs = entries.iter().filter(|e| e.kind == "blob").count();
-    let trees = entries.iter().filter(|e| e.kind == "tree").count();
-    // Independent check: plain ls-tree line count.
-    let out = fixtures::run_git(&l.f.dir, &["ls-tree", "-r", &l.c4]);
+    // Root listing (content-addressed per directory by design).
+    let root = git::snapshot::tree_entries(&r, &l.c4).expect("tree");
+    let out = fixtures::run_git(&l.f.dir, &["ls-tree", &l.c4]);
     let lines = String::from_utf8(out).expect("utf8");
-    let git_blobs = lines.lines().filter(|l| l.contains(" blob ")).count();
-    let git_trees = lines.lines().filter(|l| l.contains(" tree ")).count();
-    assert_eq!(blobs, git_blobs);
-    assert_eq!(trees, git_trees);
+    assert_eq!(
+        root.iter().filter(|e| e.kind == "blob").count(),
+        lines.lines().filter(|l| l.contains(" blob ")).count(),
+        "root blobs"
+    );
+    assert_eq!(
+        root.iter().filter(|e| e.kind == "tree").count(),
+        lines.lines().filter(|l| l.contains(" tree ")).count(),
+        "root trees"
+    );
+    // Recursing by tree sha must reach the same total as `ls-tree -r`.
+    let mut blobs = root.iter().filter(|e| e.kind == "blob").count();
+    for dir in root.iter().filter(|e| e.kind == "tree") {
+        let children = git::snapshot::tree_entries(&r, &dir.object).expect("subtree");
+        blobs += children.iter().filter(|e| e.kind == "blob").count();
+    }
+    let recursive = fixtures::run_git(&l.f.dir, &["ls-tree", "-r", &l.c4]);
+    let recursive = String::from_utf8(recursive).expect("utf8");
+    assert_eq!(blobs, recursive.lines().filter(|l| l.contains(" blob ")).count());
 }
 
 #[test]
@@ -222,17 +252,21 @@ fn symlink_and_submodule_kinds() {
 fn evolution_follows_rename_chain() {
     let rn = with_rename();
     let r = repo(&rn.f);
-    let entries = git::evolution::file_evolution(&r, &rn.create, &rn.modify, "deployment-worker.ts").expect("evolution");
+    let entries = git::evolution::file_evolution(&r, &rn.init, &rn.modify, "deployment-worker.ts").expect("evolution");
     assert_eq!(entries.len(), 3, "create + rename + modify: {entries:?}");
     assert_eq!(entries[0].sha, rn.create);
     assert_eq!(entries[0].status, FileStatus::Added);
+    assert_eq!(entries[0].new_path, "worker.ts");
     assert_eq!(entries[1].sha, rn.rename);
     assert_eq!(entries[1].status, FileStatus::Renamed);
     assert_eq!(entries[1].old_path.as_deref(), Some("worker.ts"));
+    assert_eq!(entries[1].new_path, "deployment-worker.ts");
     assert_eq!(entries[2].sha, rn.modify);
     assert_eq!(entries[2].status, FileStatus::Modified);
     // Line counts come from the numstat merge.
-    assert!(entries[2].additions > 0);
+    assert_eq!(entries[0].additions, 5);
+    assert_eq!(entries[1].additions, 1);
+    assert_eq!(entries[2].additions, 1);
 }
 
 // -- tags ------------------------------------------------------------------------
@@ -241,9 +275,11 @@ fn evolution_follows_rename_chain() {
 fn tag_range_resolution() {
     let t = with_tags();
     let r = repo(&t.f);
+    assert_eq!(git::history::root_commit(&r, "HEAD").expect("root"), t.c1);
     let range = git::history::resolve_replay(&r, Some("v1.0"), None, false, false).expect("resolve");
     assert_eq!(range.base_sha, t.c2, "v1.0 points at c2");
     assert_eq!(subjects(&range), vec!["three"]);
+    assert_eq!(range.commits[0].sha, t.c3);
     // Tags are listed with peeled shas.
     let tags = git::history::list_tags(&r).expect("tags");
     assert_eq!(tags.len(), 1);
@@ -268,7 +304,6 @@ fn branches_are_listed_with_head_flag() {
 #[test]
 fn cache_deletion_does_not_change_results() {
     let l = linear();
-    let r = repo(&l.f);
 
     let compute = |cache_dir: Option<std::path::PathBuf>| {
         let state = AppState::new(cache_dir.map(|d| CacheStore::open(&d.join("cache.db")).expect("cache open")));
@@ -297,8 +332,8 @@ fn large_diff_stats_match_shortstat() {
     let meta = git::history::log_metas(&r, &["-n", "1", &lg.c1]).expect("meta").remove(0);
     let detail = git::changes::commit_detail(&r, &meta, None).expect("detail");
     assert_eq!(detail.stats.files_changed, 1);
-    assert_eq!(detail.stats.insertions, 1500);
-    assert_eq!(detail.files[0].additions, 1500);
+    assert_eq!(detail.stats.insertions, 1500, "stats: {:?}", detail.stats);
+    assert_eq!(detail.files[0].additions, 1500, "files: {:#?}", detail.files);
 }
 
 #[test]
@@ -306,10 +341,10 @@ fn snapshot_stats_counts_files_and_loc() {
     let l = linear();
     let r = repo(&l.f);
     let stats = git::snapshot::snapshot_stats(&r, &l.c4).expect("stats");
-    assert_eq!(stats.files, 3); // README.md, a.ts, service.ts
+    assert_eq!(stats.files, 4); // README.md, src/a.ts, src/service.ts, tests/a.test.ts
     assert_eq!(stats.dirs, 2); // src, tests
     assert!(stats.loc.is_some());
-    assert!(stats.loc.unwrap() >= 4);
+    assert!(stats.loc.unwrap() >= 5);
 }
 
 // -- search --------------------------------------------------------------------------

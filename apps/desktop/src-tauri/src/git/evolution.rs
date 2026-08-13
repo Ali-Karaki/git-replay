@@ -1,14 +1,20 @@
 //! File evolution: every commit within a replay range that touched a path,
-//! with rename continuity (git's own -M detection per commit).
+//! with rename continuity.
 //!
-//! Two `git log -z` calls (--raw for statuses/renames, --numstat for line
-//! counts) are merged per commit. Results run head→base; the UI reverses.
+//! `git log --follow` does the heavy lifting: it follows the file backwards
+//! through renames (git's own detection), so one --raw call plus one
+//! --numstat call (for line counts) is the whole implementation.
+//!
+//! Output format facts (verified against git 2.53):
+//! - With -z, each record is `sha\x1fsubject\x1fts\0\n` then diff entries.
+//! - --raw entries: `:100644 100644 <old> <new> R083\0oldpath\0newpath\0`.
+//! - --numstat entries: `add\tdel\t\0path\0` (renames: `\0new\0old\0`).
 
 use super::{literal_pathspec, lossy, run_git, Repo};
 use crate::error::AppError;
 use crate::git::types::{EvolutionEntry, FileStatus};
 
-/// One parsed file entry from a `git log --raw/--name-status` record.
+/// One parsed file entry from a `git log --raw` record.
 struct RawEntry {
     status: FileStatus,
     similarity: Option<u8>,
@@ -23,15 +29,11 @@ struct RawCommit {
     entries: Vec<RawEntry>,
 }
 
-/// Parse `git log -z --format=%H%x1f%s%x1f%ct --name-status -M -C` output.
-///
-/// Record shape: `sha\x1fsubject\x1fct` then entries `M\0path\0` /
-/// `R100\0old\0new\0`. A token that looks like a full SHA starts a record.
+/// Parse `git log -z --format=%H%x1f%s%x1f%ct --raw -M` output.
 fn parse_raw_log(bytes: &[u8]) -> Vec<RawCommit> {
     let mut commits: Vec<RawCommit> = Vec::new();
     let mut i = 0usize;
     while i < bytes.len() {
-        // Skip separators.
         while i < bytes.len() && bytes[i] == 0 {
             i += 1;
         }
@@ -44,18 +46,13 @@ fn parse_raw_log(bytes: &[u8]) -> Vec<RawCommit> {
         };
         let mut entries = Vec::new();
         loop {
-            // Between entries (and before the next record) git emits NULs.
             while i < bytes.len() && bytes[i] == 0 {
                 i += 1;
             }
-            if i >= bytes.len() {
+            if i >= bytes.len() || looks_like_sha(bytes, i) {
                 break;
             }
-            // A hex token long enough to be an object id → next record.
-            if looks_like_sha(bytes, i) {
-                break;
-            }
-            // Status token: letter(s) + optional score, NUL-terminated.
+            // Raw entry: ":mode mode old new R083" then NUL-terminated paths.
             let start = i;
             while i < bytes.len() && bytes[i] != 0 {
                 i += 1;
@@ -65,14 +62,18 @@ fn parse_raw_log(bytes: &[u8]) -> Vec<RawCommit> {
             if token.is_empty() {
                 continue;
             }
-            let (status, similarity) = match token[0] {
+            let status_part = token.split(|&b| b == b' ').next_back().unwrap_or(token);
+            if status_part.is_empty() {
+                continue;
+            }
+            let (status, similarity) = match status_part[0] {
                 b'R' | b'C' => {
-                    let score = std::str::from_utf8(&token[1..]).ok().and_then(|s| s.parse().ok());
-                    (FileStatus::from_git_letter(token[0]), score)
+                    let score = std::str::from_utf8(&status_part[1..]).ok().and_then(|s| s.parse().ok());
+                    (FileStatus::from_git_letter(status_part[0]), score)
                 }
                 c => (FileStatus::from_git_letter(c), None),
             };
-            let n_paths = if matches!(token[0], b'R' | b'C') { 2 } else { 1 };
+            let n_paths = if matches!(status_part[0], b'R' | b'C') { 2 } else { 1 };
             let mut paths: Vec<String> = Vec::with_capacity(n_paths);
             for _ in 0..n_paths {
                 let s = i;
@@ -94,15 +95,18 @@ fn parse_raw_log(bytes: &[u8]) -> Vec<RawCommit> {
     commits
 }
 
-/// Read `sha\x1fsubject\x1fct` (followed by `\0` or `\n`).
+/// Read `sha\x1fsubject\x1fts` followed by `\0\n` (the -z record terminator).
 fn read_record_header(bytes: &[u8], i: &mut usize) -> Option<(String, String, i64)> {
     let start = *i;
     while *i < bytes.len() && bytes[*i] != 0 && bytes[*i] != b'\n' {
         *i += 1;
     }
     let area = lossy(&bytes[start..*i]);
-    // Consume the terminator.
+    // Consume the terminator: with -z the format line ends in `\0\n`.
     if *i < bytes.len() {
+        *i += 1;
+    }
+    if *i < bytes.len() && (bytes[*i] == b'\n' || bytes[*i] == 0) {
         *i += 1;
     }
     let fields: Vec<&str> = area.split('\x1f').collect();
@@ -124,8 +128,8 @@ fn looks_like_sha(bytes: &[u8], i: usize) -> bool {
     false
 }
 
-/// Parse `git log -z --format=%H%x1f%s%x1f%ct --numstat -M -C` output into
-/// per-commit `(additions, deletions, path)` rows.
+/// Parse `git log -z --format=%H%x1f%s%x1f%ct --numstat -M` output into
+/// per-commit `(additions, deletions, new_path)` rows.
 fn parse_numstat_log(bytes: &[u8]) -> Vec<(String, Vec<(i64, i64, String)>)> {
     let mut out: Vec<(String, Vec<(i64, i64, String)>)> = Vec::new();
     let mut i = 0usize;
@@ -145,98 +149,73 @@ fn parse_numstat_log(bytes: &[u8]) -> Vec<(String, Vec<(i64, i64, String)>)> {
             if i >= bytes.len() || looks_like_sha(bytes, i) {
                 break;
             }
-            // add\0del\0path\0 (+ empty old-name slot for renames)
-            let mut fields: Vec<String> = Vec::new();
-            for _ in 0..3 {
-                let s = i;
-                while i < bytes.len() && bytes[i] != 0 {
-                    i += 1;
-                }
-                fields.push(lossy(&bytes[s..i]));
+            // Rows are NUL-terminated: `add\tdel\tpath\0`; rename rows leave
+            // the path field empty and carry `\0old\0new\0` after it.
+            let start = i;
+            while i < bytes.len() && bytes[i] != 0 {
                 i += 1;
             }
-            let mut path = fields[2].clone();
+            let head = &bytes[start..i];
+            i += 1;
+            let parts: Vec<&[u8]> = head.split(|&b| b == b'\t').collect();
+            if parts.len() < 2 {
+                continue;
+            }
+            let add = num(parts[0]);
+            let del = num(parts[1]);
+            let path = parts.get(2).copied().unwrap_or(b"");
             if path.is_empty() {
-                let s = i;
-                while i < bytes.len() && bytes[i] != 0 {
+                // Rename row: [old, new] follow as NUL-separated tokens.
+                let mut paths: Vec<String> = Vec::new();
+                while i < bytes.len() && bytes[i] != 0 && paths.len() < 2 {
+                    let s = i;
+                    while i < bytes.len() && bytes[i] != 0 {
+                        i += 1;
+                    }
+                    paths.push(lossy(&bytes[s..i]));
                     i += 1;
                 }
-                path = lossy(&bytes[s..i]);
-                i += 1;
+                if paths.len() == 2 {
+                    rows.push((add, del, paths[1].clone()));
+                }
+            } else {
+                rows.push((add, del, lossy(path)));
             }
-            if path.is_empty() {
-                break;
-            }
-            let add = if fields[0] == "-" { -1 } else { fields[0].parse().unwrap_or(-1) };
-            let del = if fields[1] == "-" { -1 } else { fields[1].parse().unwrap_or(-1) };
-            rows.push((add, del, path));
         }
         out.push((sha, rows));
     }
     out
 }
 
-/// Every commit in `base..head` that touched `path`, in topological order,
-/// following rename chains backwards (creation commits before a rename are
-/// included; rename continuity is git's own -M/-C detection per commit).
-pub fn file_evolution(repo: &Repo, base: &str, head: &str, path: &str) -> Result<Vec<EvolutionEntry>, AppError> {
-    // Canonical topo order of the range, used to order the merged results.
-    let range = format!("{base}..{head}");
-    let order: std::collections::HashMap<String, usize> = {
-        let out = run_git(&repo.path, &["rev-list", "--topo-order", &range])
-            .map_err(|e| AppError::git("could not trace file history", e))?;
-        lossy(&out).split_whitespace().enumerate().map(|(i, s)| (s.to_string(), i)).collect()
-    };
-
-    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::from([path.to_string()]);
-    let mut visited_paths: std::collections::HashSet<String> =
-        std::collections::HashSet::from([path.to_string()]);
-    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
-    let mut entries: Vec<EvolutionEntry> = Vec::new();
-
-    while let Some(p) = queue.pop_front() {
-        for e in file_evolution_single(repo, base, head, &p)? {
-            // Follow the chain backwards: when this path arrived via a
-            // rename/copy, also trace the old path.
-            if matches!(e.status, FileStatus::Renamed | FileStatus::Copied) {
-                if let Some(old) = &e.old_path {
-                    if old != &p && visited_paths.insert(old.clone()) {
-                        queue.push_back(old.clone());
-                    }
-                }
-            }
-            let key = (e.sha.clone(), format!("{:?}:{}", e.old_path, e.new_path));
-            if seen.insert(key) {
-                entries.push(e);
-            }
-        }
+fn num(tok: &[u8]) -> i64 {
+    if tok == b"-" {
+        -1
+    } else {
+        std::str::from_utf8(tok).ok().and_then(|s| s.parse().ok()).unwrap_or(-1)
     }
-
-    entries.sort_by_key(|e| order.get(&e.sha).copied().unwrap_or(usize::MAX));
-    Ok(entries)
 }
 
-/// Commits in `base..head` touching the literal `path` (no rename following),
-/// head→base order.
-fn file_evolution_single(repo: &Repo, base: &str, head: &str, path: &str) -> Result<Vec<EvolutionEntry>, AppError> {
+/// Every commit in `base..head` that touched `path`, oldest first, following
+/// renames backwards (creation commits before a rename are included).
+pub fn file_evolution(repo: &Repo, base: &str, head: &str, path: &str) -> Result<Vec<EvolutionEntry>, AppError> {
     let range = format!("{base}..{head}");
     let format = "--format=%H%x1f%s%x1f%ct";
     let spec = literal_pathspec(path);
 
     let raw = {
-        let args: Vec<&str> = vec!["log", "-z", "--topo-order", format, "-M", "-C", "--raw", &range, "--", &spec];
+        let args: Vec<&str> = vec!["log", "-z", "--topo-order", format, "--follow", "-M", "--raw", &range, "--", &spec];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not trace file history", e))?;
         parse_raw_log(&out)
     };
 
     let nums = {
-        let args: Vec<&str> = vec!["log", "-z", "--topo-order", format, "-M", "-C", "--numstat", &range, "--", &spec];
+        let args: Vec<&str> = vec!["log", "-z", "--topo-order", format, "--follow", "-M", "--numstat", &range, "--", &spec];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not trace file history", e))?;
         parse_numstat_log(&out)
     };
 
-    // Merge line counts by commit + path (deleted files are keyed by their
-    // old path, everything else by the new path).
+    // Merge line counts by commit + new path (deleted files are keyed by
+    // their old path, everything else by the new path).
     let mut result = Vec::new();
     for raw_commit in raw {
         let num_rows = nums.iter().find(|(sha, _)| *sha == raw_commit.sha).map(|(_, r)| r);
@@ -262,6 +241,8 @@ fn file_evolution_single(repo: &Repo, base: &str, head: &str, path: &str) -> Res
             });
         }
     }
+    // log emits newest first; replay frames run oldest first.
+    result.reverse();
     Ok(result)
 }
 
@@ -271,20 +252,26 @@ mod tests {
 
     #[test]
     fn parses_raw_log_records() {
-        let bytes = b"abc1234567890abc1234567890abc1234567\x1fFix stuff\x1f1700000000\nM\0src/a.ts\0R100\0old.ts\0new.ts\0\0def1234567890def1234567890def1234567\x1fMore\x1f1700000100\nA\0added.ts\0";
+        // Real shape: format line ends in \0\n; raw entries carry the
+        // ":mode mode old new R083" prefix.
+        let bytes = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x1fFix stuff\x1f1700000000\0\n:100644 100644 abc123 def456 M\0src/a.ts\0:100644 100644 94c99a3 f985857 R083\0old.ts\0new.ts\0\0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\x1fMore\x1f1700000100\0\n:000000 100644 0000000 94c99a3 A\0added.ts\0";
         let commits = parse_raw_log(bytes);
         assert_eq!(commits.len(), 2);
-        assert_eq!(commits[0].sha, "abc1234567890abc1234567890abc1234567");
+        assert_eq!(commits[0].sha, "a".repeat(40));
         assert_eq!(commits[0].subject, "Fix stuff");
         assert_eq!(commits[0].entries.len(), 2);
+        assert_eq!(commits[0].entries[0].status, FileStatus::Modified);
         assert_eq!(commits[0].entries[1].status, FileStatus::Renamed);
+        assert_eq!(commits[0].entries[1].similarity, Some(83));
         assert_eq!(commits[0].entries[1].old_path.as_deref(), Some("old.ts"));
+        assert_eq!(commits[0].entries[1].new_path, "new.ts");
         assert_eq!(commits[1].entries[0].status, FileStatus::Added);
     }
 
     #[test]
     fn parses_numstat_log_records() {
-        let bytes = b"abc1234567890abc1234567890abc1234567\x1fFix\x1f1700000000\n84\012\0src/a.ts\0\0def1234567890def1234567890def1234567\x1fMore\x1f1700000100\n-\0-\0img.png\0";
+        // Real shape: rows are `add\tdel\tpath\0` after the `\0\n` header.
+        let bytes = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x1fFix\x1f1700000000\0\n84\t12\tsrc/a.ts\0\0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\x1fMore\x1f1700000100\0\n-\t-\timg.png\0";
         let commits = parse_numstat_log(bytes);
         assert_eq!(commits.len(), 2);
         assert_eq!(commits[0].1, vec![(84, 12, "src/a.ts".into())]);

@@ -10,9 +10,13 @@ use crate::git::types::{FileAtCommit, FileKind, SnapshotStats, TreeEntry};
 use base64::Engine;
 
 /// List a tree's entries. Accepts a tree SHA, a commit SHA, or a `rev:path`
-/// spec — anything peelable with `^{tree}`.
+/// spec. Peeling happens in two steps: `rev:path^{tree}` is not valid git
+/// syntax, so resolve first, then peel.
 pub fn tree_entries(repo: &Repo, treeish: &str) -> Result<Vec<TreeEntry>, AppError> {
-    let tree = run_git(&repo.path, &["rev-parse", "--verify", &format!("{treeish}^{{tree}}")])
+    let resolved = run_git(&repo.path, &["rev-parse", "--verify", treeish])
+        .map_err(|e| AppError::git("could not read the directory tree", e))?;
+    let resolved = trim_line(&lossy(&resolved)).to_string();
+    let tree = run_git(&repo.path, &["rev-parse", "--verify", &format!("{resolved}^{{tree}}")])
         .map_err(|e| AppError::git("could not read the directory tree", e))?;
     let tree = trim_line(&lossy(&tree)).to_string();
     let out = run_git(&repo.path, &["ls-tree", "-l", "-z", &tree])
@@ -20,7 +24,8 @@ pub fn tree_entries(repo: &Repo, treeish: &str) -> Result<Vec<TreeEntry>, AppErr
     Ok(parse_ls_tree(&out))
 }
 
-/// Parse `git ls-tree -l -z` output: `<mode> <type> <sha> <size>\t<name>\0`.
+/// Parse `git ls-tree -l -z` output: `<mode> <type> <sha> <size|-}\t<name>\0`
+/// (with `-l`, blobs carry a byte size in the meta; trees/submodules show "-").
 pub fn parse_ls_tree(bytes: &[u8]) -> Vec<TreeEntry> {
     let mut entries = Vec::new();
     for entry in bytes.split(|&b| b == 0) {
@@ -28,21 +33,20 @@ pub fn parse_ls_tree(bytes: &[u8]) -> Vec<TreeEntry> {
             continue;
         }
         let Some((head, name)) = split_once_byte(entry, b'\t') else { continue };
-        let (meta, size) = match split_once_byte(head, b'\t') {
-            // With -l the size sits between a tab and the name; with plain -z
-            // there is no size field.
-            Some((m, s)) => (m, s),
-            None => (head, b"0".as_slice()),
-        };
-        let parts: Vec<&[u8]> = meta.split(|&b| b == b' ').collect();
+        let parts: Vec<&[u8]> = head.split(|&b| b == b' ').collect();
         if parts.len() < 3 {
             continue;
         }
+        let size = parts
+            .get(3)
+            .and_then(|s| std::str::from_utf8(s).ok())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
         entries.push(TreeEntry {
             name: lossy(name),
             kind: lossy(parts[1]),
             mode: lossy(parts[0]),
-            size: std::str::from_utf8(size).ok().and_then(|s| s.parse().ok()).unwrap_or(0),
+            size,
             object: lossy(parts[2]),
         });
     }
@@ -72,12 +76,12 @@ pub fn file_at_commit(repo: &Repo, sha: &str, path: &str) -> Result<FileAtCommit
     })?;
     let obj = trim_line(&lossy(&obj)).to_string();
 
-    let kind = run_git(&repo.path, &["cat-file", "-t", &obj])
-        .map_err(|e| AppError::git("could not inspect file", e))?;
-    let kind = trim_line(&lossy(&kind)).to_string();
+    // The parent entry's mode decides the kind — gitlinks (160000) are
+    // submodules whose recorded commit may not even be cloned, so the mode
+    // must be consulted before touching the object.
+    let mode = parent_entry_mode(repo, sha, path)?.unwrap_or_else(|| "100644".to_string());
 
-    // Submodule: the tree entry is a commit.
-    if kind == "commit" {
+    if mode.starts_with("160000") {
         return Ok(FileAtCommit {
             path: path.to_string(),
             blob_sha: obj.clone(),
@@ -89,9 +93,6 @@ pub fn file_at_commit(repo: &Repo, sha: &str, path: &str) -> Result<FileAtCommit
             submodule_sha: Some(obj),
         });
     }
-
-    // Find the entry's mode via its parent tree (symlink vs regular file).
-    let mode = parent_entry_mode(repo, sha, path)?.unwrap_or_else(|| "100644".to_string());
 
     let data = blob_data(repo, &obj)?;
     let size = data.len() as u64;
@@ -153,7 +154,8 @@ const LOC_MAX_BLOB: u64 = 32 * 1024 * 1024;
 
 /// Files, directories, and (when affordable) lines of code at a commit.
 pub fn snapshot_stats(repo: &Repo, sha: &str) -> Result<SnapshotStats, AppError> {
-    let out = run_git(&repo.path, &["ls-tree", "-r", "-l", "-z", sha])
+    // -t includes tree rows (ls-tree -r alone lists only leaves).
+    let out = run_git(&repo.path, &["ls-tree", "-r", "-t", "-l", "-z", sha])
         .map_err(|e| AppError::git("could not read the repository tree", e))?;
     let entries = parse_ls_tree(&out);
 
@@ -234,13 +236,14 @@ mod tests {
 
     #[test]
     fn parses_ls_tree_output() {
-        let bytes = b"100644 blob abc123 42\tfile.ts\0040000 tree def456 0\tsrc\0160000 commit 0123456 0\tsub\0";
+        let bytes = b"100644 blob abc123 42\tfile.ts\0040000 tree def456 -\tsrc\0160000 commit 0123456 -\tsub\0";
         let entries = parse_ls_tree(bytes);
         assert_eq!(entries.len(), 3);
         assert_eq!(entries[0].name, "file.ts");
         assert_eq!(entries[0].kind, "blob");
         assert_eq!(entries[0].size, 42);
         assert_eq!(entries[1].kind, "tree");
+        assert_eq!(entries[1].size, 0);
         assert_eq!(entries[2].kind, "commit");
         assert_eq!(entries[2].object, "0123456");
     }
