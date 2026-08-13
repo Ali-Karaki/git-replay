@@ -13,8 +13,10 @@ It is a development timelapse player, not a Git client.
 [![CI](https://img.shields.io/badge/CI-passing-green.svg)](https://github.com/<owner>/git_replay/actions)
 [![Tests](https://img.shields.io/badge/tests-81%20passing-green.svg)](#testing)
 
-The full product specification lives in [`convo_with_gpt.txt`](convo_with_gpt.txt)
-(product summary, UX spec, invariants, and implementation order).
+Git Replay answers one question: **how did this codebase get from state A to
+state B?** Open a repository, pick what to watch (branch, commits, releases,
+PR, or everything), and press Play — the evolution of the code replays like a
+movie, frame by frame.
 
 ## Install
 
