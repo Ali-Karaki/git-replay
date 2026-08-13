@@ -5,7 +5,8 @@
 use super::changes::{parse_name_status, parse_numstat, parse_shortstat};
 use super::{is_binary, lossy, run_git, Repo};
 use crate::error::AppError;
-use crate::git::types::{FileChange, FileStatus, WorkingTreeFrame};
+use crate::git::types::{FileAtCommit, FileChange, FileKind, FileStatus, TreeEntry, WorkingTreeFrame};
+use std::collections::HashMap;
 
 /// Changes in the working tree relative to HEAD (staged + unstaged).
 pub fn working_tree_frame(repo: &Repo) -> Result<WorkingTreeFrame, AppError> {
@@ -149,4 +150,110 @@ pub fn head_state(repo: &Repo) -> Result<crate::git::types::HeadState, AppError>
         out.map(|o| !o.is_empty()).unwrap_or(false)
     };
     Ok(crate::git::types::HeadState { sha, branch, dirty })
+}
+
+/// The working tree as a nested directory map (dir path → immediate entries,
+/// directories included), synthesized from the index (`ls-files --stage`) plus
+/// untracked files — no tree objects are fabricated.
+pub fn dir_map(repo: &Repo) -> Result<HashMap<String, Vec<TreeEntry>>, AppError> {
+    // Index files: "<mode> <sha> <stage>\t<path>".
+    let staged = run_git(&repo.path, &["ls-files", "--stage", "-z"])
+        .map_err(|e| AppError::git("could not read the index", e))?;
+    let mut flat: Vec<(String, String, String)> = Vec::new(); // (path, mode, sha)
+    for row in staged.split(|&b| b == 0) {
+        if row.is_empty() {
+            continue;
+        }
+        let Some((head, path)) = split_tab(row) else { continue };
+        let parts: Vec<&[u8]> = head.split(|&b| b == b' ').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        flat.push((lossy(path), lossy(parts[0]), lossy(parts[1])));
+    }
+    // Untracked files: no mode/sha.
+    let untracked = run_git(&repo.path, &["ls-files", "--others", "--exclude-standard", "-z"])
+        .map_err(|e| AppError::git("could not list untracked files", e))?;
+    for path in untracked.split(|&b| b == 0) {
+        if path.is_empty() {
+            continue;
+        }
+        let path = lossy(path);
+        if !flat.iter().any(|(p, _, _)| p == &path) {
+            flat.push((path, "100644".to_string(), String::new()));
+        }
+    }
+
+    let mut dirs: HashMap<String, Vec<TreeEntry>> = HashMap::new();
+    dirs.insert(String::new(), Vec::new());
+    for (path, mode, sha) in flat {
+        let mut parts: Vec<&str> = path.split('/').collect();
+        let name = parts.pop().unwrap_or_default();
+        // Register every ancestor directory as an entry of its parent.
+        let mut current = String::new();
+        for part in &parts {
+            let dir_entries = dirs.entry(current.clone()).or_default();
+            let dir_key = if current.is_empty() { (*part).to_string() } else { format!("{current}/{part}") };
+            if !dir_entries.iter().any(|e| e.name == *part && e.kind == "tree") {
+                dir_entries.push(TreeEntry {
+                    name: (*part).to_string(),
+                    kind: "tree".into(),
+                    mode: "040000".into(),
+                    size: 0,
+                    object: format!("wt:{dir_key}"),
+                });
+            }
+            current = dir_key;
+        }
+        let dir_entries = dirs.entry(current.clone()).or_default();
+        if !dir_entries.iter().any(|e| e.name == name) {
+            dir_entries.push(TreeEntry {
+                name: name.to_string(),
+                kind: if mode.starts_with("160000") { "commit".into() } else { "blob".into() },
+                mode: mode.clone(),
+                size: 0,
+                object: if mode.starts_with("160000") { sha } else { String::new() },
+            });
+        }
+    }
+    // Sort each dir: dirs first, then names.
+    for entries in dirs.values_mut() {
+        entries.sort_by(|a, b| {
+            let ak = if a.kind == "tree" { 0 } else { 1 };
+            let bk = if b.kind == "tree" { 0 } else { 1 };
+            ak.cmp(&bk).then_with(|| a.name.cmp(&b.name))
+        });
+    }
+    Ok(dirs)
+}
+
+fn split_tab(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
+    bytes.iter().position(|&b| b == b'\t').map(|i| (&bytes[..i], &bytes[i + 1..]))
+}
+
+/// Wrap raw bytes into the `FileAtCommit` shape (mode/symlink/binary sniff).
+pub fn file_from_bytes(path: &str, blob_sha: &str, data: Vec<u8>, size: u64) -> FileAtCommit {
+    use base64::Engine;
+    if is_binary(&data) {
+        return FileAtCommit {
+            path: path.to_string(),
+            blob_sha: blob_sha.to_string(),
+            size,
+            kind: FileKind::Binary,
+            content: None,
+            content_base64: Some(base64::engine::general_purpose::STANDARD.encode(&data)),
+            symlink_target: None,
+            submodule_sha: None,
+        };
+    }
+    FileAtCommit {
+        path: path.to_string(),
+        blob_sha: blob_sha.to_string(),
+        size,
+        kind: FileKind::Text,
+        content: Some(lossy(&data)),
+        content_base64: None,
+        symlink_target: None,
+        submodule_sha: None,
+    }
 }

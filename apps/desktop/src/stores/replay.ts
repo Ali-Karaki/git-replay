@@ -321,13 +321,16 @@ export const useReplay = create<ReplayState>()(
       },
 
       async refreshRepo() {
-        const { repo } = get();
+        const { repo, range } = get();
         if (!repo) return;
         const info = await api.openRepository(repo.path); // revalidates + reuses handle
         const [branches, tags, headState] = await Promise.all([
           api.listBranches(info.id), api.listTags(info.id), api.getHeadState(info.id),
         ]);
-        set({ repo: info, branches, tags, headState, repoChanged: false, wtFrame: null });
+        // The working-tree frame exists only while the replay head is the
+        // checked-out commit — recompute after a repository change.
+        const hasWorkingTree = !!range && range.headSha === headState.sha;
+        set({ repo: info, branches, tags, headState, repoChanged: false, wtFrame: null, hasWorkingTree });
       },
     }),
     {
