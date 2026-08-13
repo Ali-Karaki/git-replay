@@ -160,8 +160,18 @@ export interface CacheInfo {
 export interface ChatSettings {
   provider: string;
   model: string;
+  baseUrl: string;
   hasKey: boolean;
 }
+
+export const CHAT_PROVIDERS: Array<{ id: string; label: string; defaultModel: string }> = [
+  { id: "anthropic", label: "Anthropic (Claude)", defaultModel: "claude-opus-5" },
+  { id: "deepseek", label: "DeepSeek", defaultModel: "deepseek-chat" },
+  { id: "openai", label: "OpenAI", defaultModel: "" },
+  { id: "openrouter", label: "OpenRouter", defaultModel: "" },
+  { id: "custom_openai", label: "Custom (OpenAI-compatible)", defaultModel: "" },
+  { id: "custom_anthropic", label: "Custom (Anthropic-compatible)", defaultModel: "" },
+];
 
 export interface ChatEvent {
   id: string;

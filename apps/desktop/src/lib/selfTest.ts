@@ -5,8 +5,10 @@
 // Results render as an overlay and are persisted via the engine.
 
 import { invoke } from "@tauri-apps/api/core";
+import { api } from "./ipc";
 import { getCommitDetail } from "./dataCaches";
 import { suggestInitialMode } from "../features/repository/RangeSetup";
+import { useChat } from "../stores/chat";
 import { useReplay } from "../stores/replay";
 
 interface TestResult {
@@ -506,6 +508,28 @@ export async function runSelfTest(): Promise<void> {
       click(".chat-header-actions .btn-icon:last-child"); // close
       await wait(200);
       return noCrash && document.querySelector(".chat-panel") === null;
+    });
+
+    await step("B14 live chat round-trip (real provider call when a key is configured)", async () => {
+      const settings = await api.getChatSettings();
+      if (!settings.hasKey) {
+        record("B14 note", true, "skipped — no API key configured");
+        return true;
+      }
+      click(".chat-trigger");
+      if (!(await waitFor(".chat-panel", 3000))) throw new Error("chat panel did not open");
+      setInput(".chat-input", "Reply with exactly: OK");
+      await wait(100);
+      clickByText(".chat-input-actions .btn", "Send");
+      // The real provider round-trip: streamed text must arrive.
+      if (!(await waitForText(".chat-messages .chat-msg.assistant", "OK", 60000))) {
+        const text = document.querySelector(".chat-messages")?.textContent?.slice(0, 300) ?? "none";
+        throw new Error(`no streamed reply; messages: ${text}`);
+      }
+      const stillSending = useChat.getState().sending;
+      click(".chat-header-actions .btn-icon:last-child");
+      await wait(200);
+      return !stillSending;
     });
   }
 

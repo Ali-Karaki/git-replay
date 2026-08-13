@@ -74,8 +74,8 @@ export const api = {
   getChatSettings(): Promise<ChatSettings> {
     return invoke("get_chat_settings");
   },
-  setChatSettings(provider: string, model: string, apiKey: string | null): Promise<ChatSettings> {
-    return invoke("set_chat_settings", { provider, model, apiKey });
+  setChatSettings(provider: string, model: string, baseUrl: string | null, apiKey: string | null): Promise<ChatSettings> {
+    return invoke("set_chat_settings", { provider, model, baseUrl, apiKey });
   },
   chatSend(requestId: string, messages: Array<{ role: string; content: string }>): Promise<void> {
     return invoke("chat_send", { requestId, messagesJson: JSON.stringify(messages) });

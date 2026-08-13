@@ -9,14 +9,15 @@ import { useChat } from "../../stores/chat";
 import { useReplay } from "../../stores/replay";
 import { renderMarkdown } from "../../lib/markdown";
 import { frameSha } from "../../stores/replay";
-import type { ChatEvent } from "../../lib/types";
+import { CHAT_PROVIDERS, type ChatEvent } from "../../lib/types";
 import { BranchIcon, CloseIcon } from "../../components/Icons";
 
-const MODELS = [
-  { id: "claude-opus-5", label: "Claude Opus 5 (default)" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (fast)" },
-];
+const MODEL_SUGGESTIONS: Record<string, string[]> = {
+  anthropic: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  openai: ["gpt-5-mini", "gpt-5", "gpt-4.1-mini"],
+  openrouter: ["anthropic/claude-opus-5", "deepseek/deepseek-chat", "openai/gpt-5-mini"],
+};
 
 export function ChatPanel() {
   const open = useChat((s) => s.open);
@@ -28,7 +29,12 @@ export function ChatPanel() {
   const setSettingsOpen = useChat((s) => s.setSettingsOpen);
   const [input, setInput] = useState("");
   const [keyInput, setKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState(useChat.getState().model);
+  const provider = useChat((s) => s.provider);
+  const model = useChat((s) => s.model);
+  const baseUrl = useChat((s) => s.baseUrl);
+  const [modelInput, setModelInput] = useState(model);
+  const [providerInput, setProviderInput] = useState(provider);
+  const [baseUrlInput, setBaseUrlInput] = useState(baseUrl);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -105,28 +111,74 @@ export function ChatPanel() {
       {settingsOpen && (
         <div className="chat-settings">
           <p className="dim">
-            Your Anthropic API key is stored locally in the OS config directory. Requests go
-            directly from this app to Claude — nothing else is sent, and only when you ask.
+            Your API key is stored locally in the OS config directory. Requests go directly from
+            this app to the provider you pick — nothing else is sent, and only when you ask.
           </p>
           <label>
-            Model
-            <select className="select" value={modelInput} onChange={(e) => setModelInput(e.target.value)}>
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
+            Provider
+            <select
+              className="select"
+              value={providerInput}
+              onChange={(e) => {
+                const id = e.target.value;
+                setProviderInput(id);
+                const p = CHAT_PROVIDERS.find((p) => p.id === id);
+                if (p) {
+                  if (id !== "anthropic" && modelInput === "claude-opus-5") setModelInput(p.defaultModel);
+                  if (id === "anthropic" && !modelInput) setModelInput("claude-opus-5");
+                  setBaseUrlInput("");
+                }
+              }}
+            >
+              {CHAT_PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
               ))}
             </select>
           </label>
+          <label>
+            Model
+            <input
+              list="chat-models"
+              value={modelInput}
+              onChange={(e) => setModelInput(e.target.value)}
+              placeholder={CHAT_PROVIDERS.find((p) => p.id === providerInput)?.defaultModel || "model id"}
+              autoComplete="off"
+            />
+            <datalist id="chat-models">
+              {(MODEL_SUGGESTIONS[providerInput] ?? []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </label>
+          {(providerInput === "custom_openai" || providerInput === "custom_anthropic") && (
+            <label>
+              Base URL
+              <input
+                value={baseUrlInput}
+                onChange={(e) => setBaseUrlInput(e.target.value)}
+                placeholder={
+                  providerInput === "custom_openai"
+                    ? "https://your-host/v1/chat/completions"
+                    : "https://your-host/v1/messages"
+                }
+                autoComplete="off"
+              />
+            </label>
+          )}
           <label>
             API key {hasKey && <span className="dim">(saved — leave blank to keep)</span>}
             <input
               type="password"
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="sk-ant-…"
+              placeholder={providerInput === "openrouter" ? "sk-or-…" : "sk-…"}
               autoComplete="off"
             />
           </label>
-          <button className="btn btn-primary" onClick={() => void useChat.getState().saveSettings(modelInput, keyInput || null)}>
+          <button
+            className="btn btn-primary"
+            onClick={() => void useChat.getState().saveSettings(providerInput, modelInput, baseUrlInput || null, keyInput || null)}
+          >
             Save
           </button>
         </div>
