@@ -71,7 +71,35 @@ npm run build            # typecheck + build the frontend
 cd src-tauri && cargo test   # engine tests against programmatic fixture repos
 ```
 
-Try it against any repository — including this one.
+### Try it
+
+Any repository works — including this one. For a curated tour, build the demo
+fixture and open `fixtures/demo-repo` (14 commits: branch + merge, a rename, a
+binary, an empty commit, tags, and a 1200-line generated file):
+
+```sh
+sh scripts/make-demo-fixture.sh
+```
+
+Suggested replays on the demo repo:
+
+- **main → main** — the whole story, root to HEAD.
+- **main → feature/worker** — the worker branch as it was built (starts at the
+  merge base).
+- Then select `src/worker.ts` and open File Evolution (key `3`) to watch that
+  one file grow.
+
+### Keyboard
+
+| Keys | Action |
+|------|--------|
+| `←` / `→` | previous / next commit |
+| `Shift+←` / `Shift+→` | jump 5 commits |
+| `Space` | play / pause |
+| `Home` / `End` | base / HEAD |
+| `1` / `2` / `3` | Step / Snapshot / File Evolution view |
+| `/` | search |
+| `Ctrl+K` | command palette |
 
 ## Product invariants
 
