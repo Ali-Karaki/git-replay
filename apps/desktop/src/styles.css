@@ -712,6 +712,19 @@ mark.wd {
 .pr-versions { flex-direction: row !important; align-items: center; gap: 8px; font-weight: 400 !important; color: var(--text) !important; }
 .range-error { color: var(--del); font-size: 12.5px; width: 100%; }
 
+/* -- motion (spec 39): subtle, short, cancellable; never delays navigation ---------------- */
+
+@keyframes frame-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.step-content, .commit-header {
+  animation: frame-in 140ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-content, .commit-header { animation: none; }
+}
+
 /* -- misc ----------------------------------------------------------------------------------- */
 
 .commit-no.wt { color: var(--add); }

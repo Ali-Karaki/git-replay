@@ -34,12 +34,18 @@ export function StepView() {
     () => getCommitDetail(repo!.id, commit!.sha, commit!.parents.length > 1 ? mergeParent : null),
   );
 
-  // Preserve the selected file across frames (spec 12): keep it when this
-  // commit touches it; otherwise verify it still exists at this frame and
-  // clear the selection only when it's gone.
+  // Preserve the selected file across frames (spec 12): follow renames (the
+  // selection moves to the new path), keep it when this commit touches it,
+  // and otherwise verify it still exists at this frame — clearing only when
+  // it's gone.
   useEffect(() => {
     if (!detail.data || !selectedFile || !repo || !sha) return;
-    const touched = detail.data.files.some((f) => f.newPath === selectedFile || f.oldPath === selectedFile);
+    const rename = detail.data.files.find((f) => f.oldPath === selectedFile && f.oldPath !== f.newPath);
+    if (rename) {
+      setSelectedFile(rename.newPath);
+      return;
+    }
+    const touched = detail.data.files.some((f) => f.newPath === selectedFile);
     if (touched) return;
     let cancelled = false;
     getFileAtCommit(repo.id, sha, selectedFile).catch(() => {
@@ -97,7 +103,7 @@ export function StepView() {
         ) : (
           <>
             <CommitHeader detail={detail.data} commitNo={index} />
-            <div className="step-content">
+            <div className="step-content" key={index}>
               {selectedFile === null ? (
                 <div className="empty-mini">Select a file to see its changes.</div>
               ) : fileDiff.loading || !fileDiff.data ? (

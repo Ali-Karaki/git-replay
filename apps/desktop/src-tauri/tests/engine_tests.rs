@@ -458,6 +458,52 @@ fn detached_head_resolves_and_lists_branches_without_head_flag() {
 }
 
 #[test]
+fn big_history_stays_correct_at_scale() {
+    // 500 commits (spec 46: "repository with very large history") — every
+    // engine path must stay correct, not just the happy small case.
+    let b = with_big_history(500);
+    let r = repo(&b.f);
+    assert_eq!(b.count, 500);
+
+    let range = git::history::resolve_replay(&r, Some(&b.first), Some(&b.last), false, false).expect("resolve");
+    assert_eq!(range.commits.len(), 499);
+    assert_eq!(range.commits[0].subject, "commit 0001");
+    assert_eq!(range.commits[498].subject, "commit 0499");
+
+    // Mid-history detail + diff.
+    let mid = &range.commits[250];
+    let detail = git::changes::commit_detail(&r, mid, None).expect("detail at mid");
+    assert_eq!(detail.files.len(), 1);
+    let diff = git::diff::file_diff(&r, mid, None, "src/churn.ts").expect("diff at mid");
+    assert!(diff.patch.unwrap_or_default().contains("churn 0251"), "diff content");
+
+    // File evolution across the whole range (every 10th commit: 10..490).
+    let entries = git::evolution::file_evolution(&r, &b.first, &b.last, "src/tracked.ts").expect("evolution");
+    assert_eq!(entries.len(), 49, "49 tracked.ts commits");
+    assert_eq!(entries[0].additions, 51); // "// iteration 0010" + 50 lines
+
+    // Search: message + pickaxe at scale.
+    let hits = git::search::search_replay(&r, &b.first, &b.last, "commit 0251", 10).expect("search");
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].sha, range.commits[250].sha);
+    // Pickaxe finds both the introduction and the later removal of a marker.
+    let pick = git::search::search_replay(&r, &b.first, &b.last, "iteration 0250", 10).expect("pickaxe");
+    assert_eq!(pick.len(), 2);
+    assert!(pick.iter().any(|h| h.subject == "commit 0250"), "introducing commit");
+    assert!(pick.iter().any(|h| h.subject == "commit 0260"), "removing commit");
+
+    // Snapshot stats at the head.
+    let stats = git::snapshot::snapshot_stats(&r, &b.last).expect("stats");
+    assert_eq!(stats.files, 3); // README.md, src/tracked.ts, src/churn.ts
+    assert_eq!(stats.dirs, 1);
+    assert!(stats.loc.is_some());
+
+    // Ordering invariant at scale: first frame = base, last = head.
+    assert_eq!(range.base_sha, b.first);
+    assert_eq!(range.head_sha, b.last);
+}
+
+#[test]
 fn head_state_reports_sha_branch_and_dirt() {
     let l = linear();
     let r = repo(&l.f);
