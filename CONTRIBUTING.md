@@ -10,7 +10,7 @@ how a Git repository evolved. This guide gets you from clone to pull request.
   output; never reimplement git semantics the CLI already provides.
 - **Replay is the product.** Features should answer questions about *time,
   continuity, and progression*. Code review, CI, and project management are
-  non-goals (see `convo_with_gpt.txt` for the full spec).
+  non-goals (see `docs/architecture.md` for the full principles).
 - **Core functionality works offline.** Nothing is ever uploaded.
 - **Tests are expected** for anything that touches git semantics or frame
   navigation. The suite exists precisely because real git output is full of
