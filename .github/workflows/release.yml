@@ -1,0 +1,110 @@
+# Cross-platform release pipeline: pushing a `v*` tag builds native installers
+# for Windows (MSI + NSIS), macOS (Intel + Apple Silicon DMGs), and Linux
+# (deb + AppImage) with tauri-action, publishes them as a GitHub Release, and
+# attaches a SHA256SUMS manifest.
+#
+# Users install these without compiling anything.
+#
+# macOS notes: without APPLE_CERTIFICATE/APPLE_ID secrets the bundles are
+# ad-hoc signed — users right-click → Open on first launch. Add those secrets
+# (plus APPLE_PASSWORD/APPLE_TEAM_ID) to enable signing + notarization.
+#
+# GitHub token: the repo's Actions permissions must be "Read and write" so
+# tauri-action can publish the release.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-13
+            args: --target x86_64-apple-darwin
+          - platform: macos-14
+            args: --target aarch64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-13' && 'x86_64-apple-darwin' || matrix.platform == 'macos-14' && 'aarch64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Build the application
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: enable signing/notarization by adding these secrets.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Git Replay v__VERSION__"
+          releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for what's new."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  checksums:
+    name: Publish SHA256SUMS
+    needs: build
+    runs-on: ubuntu-22.04
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          cd dist
+          find . -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.tar.gz' \) \
+            -exec sha256sum {} \; | sort -k2 > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Attach checksums to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${GITHUB_REF#refs/tags/}"
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .id)
+          gh release upload "$TAG" dist/SHA256SUMS.txt --repo "${{ github.repository }}" --clobber
