@@ -101,6 +101,18 @@ data loss. Git is the only source of truth.
 The frontend additionally keeps an in-memory commit cache and prefetches ±2 frames
 around the playhead so stepping feels instantaneous.
 
+## Testing
+
+- **Engine** (`cargo test`, 44 tests): fixtures are real repositories built by
+  the git CLI in temp dirs (linear, merge, rename, copy, binary, symlink via
+  `update-index --cacheinfo`, gitlink, tags, skewed author dates, working-tree
+  edits, 500-commit history). Invariants are compared against git's own output:
+  snapshot == `ls-tree`, diff == `git diff`, evolution == `--follow`, stats ==
+  `--shortstat`, plus cache-deletion invariance.
+- **UI** (`npm test`, vitest): store frame math and playback boundaries, the
+  unified-diff parser and split pairing, chapter heuristics, the markdown
+  renderer, and formatting helpers.
+
 ## Error model
 
 `AppError` in `src-tauri/src/errors.rs` maps git/io failures to user-meaningful
