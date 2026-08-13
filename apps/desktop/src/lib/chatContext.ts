@@ -31,9 +31,11 @@ export async function buildChatContext(): Promise<string> {
       `Current frame: commit ${s.index}/${s.range.commits.length} — ${sha.slice(0, 7)} "${commit.subject}" by ${commit.author.name}`,
     );
     if (commit.body) lines.push(`Commit body: ${commit.body.slice(0, BODY_CAP)}`);
+    // The selected merge parent only applies to merge commits.
+    const parentIndex = commit.parents.length > 1 ? s.mergeParent : null;
     const detail =
-      getCachedCommitDetail(s.repo.id, sha, s.mergeParent) ??
-      (await getCommitDetail(s.repo.id, sha, s.mergeParent).catch(() => null));
+      getCachedCommitDetail(s.repo.id, sha, parentIndex) ??
+      (await getCommitDetail(s.repo.id, sha, parentIndex).catch(() => null));
     if (detail) {
       lines.push(
         `Changed files (${detail.stats.filesChanged} files, +${detail.stats.insertions} −${detail.stats.deletions}):`,

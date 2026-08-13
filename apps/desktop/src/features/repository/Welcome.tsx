@@ -37,6 +37,11 @@ export function Welcome() {
         <p className="welcome-hint dim">
           Open any Git repository, pick a range, and press Play. Nothing ever leaves your machine.
         </p>
+        <div className="welcome-steps">
+          <div className="welcome-step"><b>1</b><span>Open any repository</span></div>
+          <div className="welcome-step"><b>2</b><span>Pick what to watch</span></div>
+          <div className="welcome-step"><b>3</b><span>Press Play</span></div>
+        </div>
         <button className="btn btn-primary btn-large" onClick={pickAndOpen} disabled={busy}>
           <FolderIcon size={15} /> {busy ? "Opening…" : "Open repository"}
         </button>

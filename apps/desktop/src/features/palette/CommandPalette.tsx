@@ -13,7 +13,13 @@ interface Command {
   run: () => void;
 }
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Ranges larger than this don't get one palette entry per commit — instead
+ *  commit jumps appear while typing (see `commitSearch`). */
+const JUMP_CAP = 300;
+
+export function CommandPalette({
+  open, onClose, onShowCheatsheet,
+}: { open: boolean; onClose: () => void; onShowCheatsheet?: () => void }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -37,19 +43,22 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       cmds.push({ id: "play", label: s.playing ? "Pause" : "Play", hint: "Space", run: () => s.setPlaying(!s.playing) });
       cmds.push({ id: "first", label: "Go to base", hint: "Home", run: () => s.setIndex(0) });
       cmds.push({ id: "last", label: "Go to HEAD", hint: "End", run: () => s.setIndex(s.range!.commits.length) });
-      // Jump-to-commit entries.
-      s.range.commits.forEach((c, i) => {
-        cmds.push({
-          id: `commit-${c.sha}`,
-          label: `Go to ${i + 1}: ${c.subject}`,
-          hint: `${shortSha(c.sha)} · ${formatDateTime(c.commitTs)}`,
-          run: () => s.setIndex(i + 1),
+      // Jump-to-commit entries — only for small enough ranges; larger ones
+      // get on-demand commit search while typing (see `commitSearch`).
+      if (s.range.commits.length <= JUMP_CAP) {
+        s.range.commits.forEach((c, i) => {
+          cmds.push({
+            id: `commit-${c.sha}`,
+            label: `Go to ${i + 1}: ${c.subject}`,
+            hint: `${shortSha(c.sha)} · ${formatDateTime(c.commitTs)}`,
+            run: () => s.setIndex(i + 1),
+          });
         });
-      });
-      cmds.push({ id: "view-step", label: `Step view${s.view === "step" ? " (current)" : ""}`, hint: "1", run: () => s.setView("step") });
-      cmds.push({ id: "view-snapshot", label: `Snapshot view${s.view === "snapshot" ? " (current)" : ""}`, hint: "2", run: () => s.setView("snapshot") });
-      cmds.push({ id: "view-evolution", label: `File evolution view${s.view === "evolution" ? " (current)" : ""}`, hint: "3", run: () => s.setView("evolution") });
-      cmds.push({ id: "view-map", label: `Change map view${s.view === "map" ? " (current)" : ""}`, hint: "4", run: () => s.setView("map") });
+      }
+      cmds.push({ id: "view-step", label: `What changed view${s.view === "step" ? " (current)" : ""}`, hint: "1", run: () => s.setView("step") });
+      cmds.push({ id: "view-snapshot", label: `Browse code view${s.view === "snapshot" ? " (current)" : ""}`, hint: "2", run: () => s.setView("snapshot") });
+      cmds.push({ id: "view-evolution", label: `File story view${s.view === "evolution" ? " (current)" : ""}`, hint: "3", run: () => s.setView("evolution") });
+      cmds.push({ id: "view-map", label: `Overview view${s.view === "map" ? " (current)" : ""}`, hint: "4", run: () => s.setView("map") });
       if (s.hasWorkingTree) {
         cmds.push({ id: "go-wt", label: "Go to Working Tree frame", run: () => s.setIndex(s.range!.commits.length + 1) });
       }
@@ -67,19 +76,39 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         cmds.push({ id: "copy-path", label: `Copy file path: ${sel}`, run: () => void copyText(sel) });
       }
     }
+    cmds.push({ id: "collapse-sidebar", label: `${s.sidebarCollapsed ? "Expand" : "Collapse"} sidebar`, run: () => set({ sidebarCollapsed: !s.sidebarCollapsed }) });
     cmds.push({ id: "open", label: "Open repository…", run: () => { onClose(); set({ repo: null, range: null }); } });
     cmds.push({ id: "change-range", label: "Change replay range…", hint: "when a repo is open", run: () => { onClose(); set({ range: null }); } });
     cmds.push({ id: "settings", label: "Settings", run: () => { onClose(); s.setScreen("settings"); } });
     cmds.push({ id: "about", label: "About Git Replay", run: () => { onClose(); s.setScreen("about"); } });
+    cmds.push({ id: "help", label: "Keyboard shortcuts", hint: "?", run: () => { onClose(); onShowCheatsheet?.(); } });
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, open]);
 
+  // For ranges too large for per-commit entries, surface matching commits as
+  // the user types (subject substring or SHA prefix).
+  const commitSearch = useMemo<Command[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!s.range || s.range.commits.length <= JUMP_CAP || q.length < 3) return [];
+    return s.range.commits
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) => c.subject.toLowerCase().includes(q) || c.sha.startsWith(q))
+      .slice(0, 20)
+      .map(({ c, i }) => ({
+        id: `commit-${c.sha}`,
+        label: `Go to ${i + 1}: ${c.subject}`,
+        hint: `${shortSha(c.sha)} · ${formatDateTime(c.commitTs)}`,
+        run: () => s.setIndex(i + 1),
+      }));
+  }, [query, s.range]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(q) || (c.hint ?? "").toLowerCase().includes(q));
-  }, [commands, query]);
+    const matches = commands.filter((c) => c.label.toLowerCase().includes(q) || (c.hint ?? "").toLowerCase().includes(q));
+    return [...commitSearch, ...matches];
+  }, [commands, commitSearch, query]);
 
   useEffect(() => {
     setSelected(0);
@@ -98,7 +127,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <input
           ref={inputRef}
           className="palette-input"
-          placeholder="Type a command… (jump to any commit)"
+          placeholder="Type a command… (or a commit's subject / SHA to jump)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {

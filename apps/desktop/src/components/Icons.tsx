@@ -34,6 +34,30 @@ export const LastIcon = (p: IconProps) => (
 export const ChevronRight = (p: IconProps) => (
   <Svg {...p}><path d="M6 4l4 4-4 4" /></Svg>
 );
+export const ChevronLeftIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M10 4L6 8l4 4" /></Svg>
+);
+export const HelpIcon = (p: IconProps) => (
+  <Svg {...p}><circle cx="8" cy="8" r="6" /><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.7c-.8.4-.9 1-.9 1.6" /><path d="M8 12v.2" /></Svg>
+);
+export const DiffIcon = (p: IconProps) => (
+  <Svg {...p}><rect x="2" y="2.5" width="12" height="4.5" rx="1" /><rect x="2" y="9" width="12" height="4.5" rx="1" /><path d="M5.5 4.75h5M8 2.5v4.5M5.5 11.25h5" /></Svg>
+);
+export const MapIcon = (p: IconProps) => (
+  <Svg {...p}><rect x="2" y="2" width="5.5" height="5.5" rx="1" /><rect x="8.5" y="2" width="5.5" height="5.5" rx="1" /><rect x="2" y="8.5" width="5.5" height="5.5" rx="1" /><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" /></Svg>
+);
+export const SpeedIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M3.5 10.5a5 5 0 0 1 9 0" /><path d="M8 10.5l2.5-4" /><circle cx="8" cy="10.5" r="0.5" fill="currentColor" stroke="none" /></Svg>
+);
+export const PrIcon = (p: IconProps) => (
+  <Svg {...p}><circle cx="5" cy="3.5" r="1.5" /><circle cx="5" cy="12.5" r="1.5" /><path d="M5 5v6" /><path d="M5 5c3 0 6 .5 8 2" /><path d="M11 5.5l3 1.5-3 1.5" /></Svg>
+);
+export const ChatIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M2 12.5c3.5-4 5-4 8-6 1.8-1.2 3.4-1.6 4-1.5-.4 3.3-2.7 7.5-6 8-2.6.4-4.3-1.8-6-.5z" /><path d="M6 12.5c-.2-1.2.1-2.4 1-3.3" /></Svg>
+);
+export const GearIcon = (p: IconProps) => (
+  <Svg {...p}><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1" /></Svg>
+);
 export const ChevronDown = (p: IconProps) => (
   <Svg {...p}><path d="M4 6l4 4 4-4" /></Svg>
 );

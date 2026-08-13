@@ -7,7 +7,9 @@ import { api } from "../../lib/ipc";
 import { useReplay } from "../../stores/replay";
 import { formatDateTime, shortSha } from "../../lib/format";
 import type { CommitMeta, PrReplay } from "../../lib/types";
-import { BranchIcon, ClockIcon, TagIcon } from "../../components/Icons";
+import {
+  BranchIcon, ClockIcon, FolderOpenIcon, PrIcon, SwapIcon, TagIcon,
+} from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
 
 type Mode = "branch" | "range" | "tags" | "pr" | "entire";
@@ -78,6 +80,24 @@ export function RangeSetup() {
 
   if (!repo) return null;
 
+  const summary = (() => {
+    if (mode === "branch") {
+      const b = base || "the default branch";
+      const h = head || "HEAD";
+      return `Will replay: ${b} → ${h}${useMergeBase ? " (from the merge base)" : ""}`;
+    }
+    if (mode === "range") {
+      return `Will replay: from ${from || "the root commit"} to ${to || "HEAD"}`;
+    }
+    if (mode === "tags") {
+      return `Will replay: from ${fromTag} to ${toTag}`;
+    }
+    if (mode === "pr") {
+      return prMeta ? `${prMeta.title} — ${prMeta.range.commits.length} commits` : "";
+    }
+    return `Will replay: every commit from the root to ${branches.find((b) => b.isHead)?.name ?? "HEAD"}`;
+  })();
+
   const start = () => {
     set({ error: null, errorDetail: null });
     if (mode === "branch") {
@@ -114,28 +134,34 @@ export function RangeSetup() {
       <div className="range-card">
         <h1>Replay <span className="dim">{repo.path}</span></h1>
 
-        <div className="range-modes" role="tablist">
-          <button role="tab" aria-selected={mode === "branch"} className={`chip big ${mode === "branch" ? "on" : ""}`} onClick={() => setMode("branch")}>
-            <BranchIcon size={13} /> Branch
-          </button>
-          <button role="tab" aria-selected={mode === "range"} className={`chip big ${mode === "range" ? "on" : ""}`} onClick={() => setMode("range")}>
-            Commit range
-          </button>
-          <button role="tab" aria-selected={mode === "tags"} className={`chip big ${mode === "tags" ? "on" : ""}`} onClick={() => setMode("tags")}>
-            <TagIcon size={13} /> Tags / releases
-          </button>
-          <button role="tab" aria-selected={mode === "pr"} className={`chip big ${mode === "pr" ? "on" : ""}`} onClick={() => setMode("pr")}>
-            Pull request
-          </button>
-          <button role="tab" aria-selected={mode === "entire"} className={`chip big ${mode === "entire" ? "on" : ""}`} onClick={() => setMode("entire")}>
-            Entire repository
-          </button>
+        <div className="range-mode-cards" role="tablist">
+          {[
+            { id: "branch" as Mode, icon: BranchIcon, title: "Watch a branch", desc: "See how a branch grew — where it started to where it is now", wide: false },
+            { id: "range" as Mode, icon: SwapIcon, title: "Watch a range of commits", desc: "Pick any start and end — commits, tags, or SHAs", wide: false },
+            { id: "tags" as Mode, icon: TagIcon, title: "Watch between releases", desc: "How the project changed from one tag to the next", wide: false },
+            { id: "pr" as Mode, icon: PrIcon, title: "Watch a pull request", desc: "Replay a GitHub PR, including its force-push history", wide: false },
+            { id: "entire" as Mode, icon: FolderOpenIcon, title: "Watch everything", desc: "The full story — initial commit to HEAD", wide: true },
+          ].map((m) => (
+            <button
+              key={m.id}
+              role="tab"
+              aria-selected={mode === m.id}
+              className={`range-mode-card ${mode === m.id ? "active" : ""} ${m.wide ? "wide" : ""}`}
+              onClick={() => setMode(m.id)}
+            >
+              <span className="range-mode-icon">{<m.icon size={16} />}</span>
+              <span>
+                <span className="range-mode-title">{m.title}</span>
+                <span className="range-mode-desc">{m.desc}</span>
+              </span>
+            </button>
+          ))}
         </div>
 
         {mode === "branch" && (
           <div className="range-form">
             <label>
-              Base
+              From
               <select value={base} onChange={(e) => setBase(e.target.value)}>
                 <option value="">(none)</option>
                 {refOptions.map((r) => (
@@ -145,7 +171,7 @@ export function RangeSetup() {
             </label>
             <span className="range-arrow dim">→</span>
             <label>
-              Head
+              To
               <select value={head} onChange={(e) => setHead(e.target.value)}>
                 <option value="">(none)</option>
                 {refOptions.map((r) => (
@@ -153,18 +179,21 @@ export function RangeSetup() {
                 ))}
               </select>
             </label>
-            <label className="checkbox">
-              <input type="checkbox" checked={useMergeBase} onChange={(e) => setUseMergeBase(e.target.checked)} />
-              Start at the merge base <span className="dim">(recommended — Frame 0 = where the branch diverged)</span>
-            </label>
-            <label className="checkbox">
-              <input type="checkbox" checked={firstParent} onChange={(e) => setFirstParent(e.target.checked)} />
-              First-parent only <span className="dim">(skip merged-in branches)</span>
-            </label>
+            <details className="range-more">
+              <summary>More options</summary>
+              <label className="checkbox">
+                <input type="checkbox" checked={useMergeBase} onChange={(e) => setUseMergeBase(e.target.checked)} />
+                Start at the merge base <span className="dim">(recommended — Frame 0 = where the branch diverged)</span>
+              </label>
+              <label className="checkbox">
+                <input type="checkbox" checked={firstParent} onChange={(e) => setFirstParent(e.target.checked)} />
+                First-parent only <span className="dim">(skip merged-in branches)</span>
+              </label>
+            </details>
             {base && base === head && (
               <div className="range-hint warn">
-                Base and head are the same ref — this replay would be empty. Pick a different branch,
-                turn off “start at the merge base”, or use Entire repository.
+                From and To are the same branch — this replay would be empty. Pick a different branch,
+                turn off “start at the merge base”, or use Watch everything.
               </div>
             )}
           </div>
@@ -274,9 +303,11 @@ export function RangeSetup() {
           </div>
         )}
 
+        {summary && <div className="range-summary">{summary}</div>}
+
         <div className="range-actions">
           <button className="btn btn-primary" onClick={start} disabled={busy || (mode === "pr" && !prMeta)}>
-            {busy ? "Resolving…" : "Replay"}
+            {busy ? "Resolving…" : "Start watching"}
           </button>
           <button className="btn" onClick={() => set({ repo: null, range: null, error: null, errorDetail: null })}>
             Open another repository

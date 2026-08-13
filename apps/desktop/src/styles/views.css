@@ -108,6 +108,24 @@
 }
 .welcome-card h1 { margin: 4px 0 0; font-size: 26px; letter-spacing: -0.02em; }
 .welcome-tagline { margin: 0; color: var(--text-dim); }
+.welcome-steps { display: flex; gap: 10px; width: 100%; margin-top: 4px; }
+.welcome-step {
+  flex: 1; text-align: left;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  display: flex; align-items: center; gap: 8px;
+}
+.welcome-step b {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 11px;
+  flex-shrink: 0;
+}
 .recent { width: 100%; margin-top: 18px; text-align: left; border-top: 1px solid var(--border); padding-top: 12px; }
 .recent-title { display: flex; align-items: center; gap: 6px; font-size: 11.5px; margin-bottom: 6px; }
 .recent-row {
@@ -131,7 +149,26 @@
   display: flex; flex-direction: column; gap: 16px;
 }
 .range-card h1 { margin: 0; font-size: 19px; font-weight: 650; }
-.range-modes { display: flex; gap: 8px; }
+.range-mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.range-mode-card {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  border-radius: var(--radius);
+  padding: 12px;
+  cursor: pointer;
+  color: var(--text);
+}
+.range-mode-card:hover { border-color: var(--border-strong); }
+.range-mode-card.active { border-color: var(--accent); background: var(--accent-soft); }
+.range-mode-card.wide { grid-column: 1 / -1; }
+.range-mode-icon { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.range-mode-title { display: block; font-size: 13px; font-weight: 600; }
+.range-mode-desc { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.range-more { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; width: 100%; }
+.range-more summary { cursor: pointer; font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.range-more .checkbox { margin-top: 8px; }
+.range-summary { font-size: 12.5px; font-weight: 500; }
 .range-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .range-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-dim); font-weight: 600; }
 .range-form select, .range-form input {
@@ -210,7 +247,6 @@
 /* -- misc ----------------------------------------------------------------------------------- */
 
 .commit-no.wt { color: var(--add); }
-.main-panel.collapsed { background: var(--bg); }
 .range-tags { display: inline-flex; align-items: center; gap: 5px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 
@@ -328,7 +364,7 @@
 
 /* -- audit-driven polish ------------------------------------------------------------------ */
 
-.playing-subject {
+.transport-subject {
   display: inline-block;
   max-width: 320px;
   overflow: hidden;
@@ -337,6 +373,7 @@
   vertical-align: bottom;
   margin-left: 10px;
   font-size: 11.5px;
+  color: var(--text-dim);
 }
 .search-kind {
   font-size: 9.5px;
@@ -354,7 +391,11 @@ button:focus:not(:focus-visible) { outline: none; }
 /* -- AI chat panel ------------------------------------------------------------------------ */
 
 .app-main { flex: 1; min-height: 0; display: flex; }
-.app-main > :first-child { flex: 1; min-width: 0; }
+.app-main > .workspace,
+.app-main > .welcome,
+.app-main > .range-setup,
+.app-main > .page,
+.app-main > .empty-state { flex: 1; min-width: 0; }
 .chat-trigger.active { color: var(--accent); background: var(--accent-soft); }
 .chat-panel {
   width: 400px;

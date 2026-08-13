@@ -9,6 +9,7 @@ import { useRepoWatch } from "./hooks/useRepoWatch";
 import { Welcome } from "./features/repository/Welcome";
 import { RangeSetup } from "./features/repository/RangeSetup";
 import { TopBar } from "./features/shell/TopBar";
+import { Sidebar } from "./features/shell/Sidebar";
 import { StepView } from "./features/step/StepView";
 import { SnapshotView } from "./features/snapshot/SnapshotView";
 import { FileEvolution } from "./features/evolution/FileEvolution";
@@ -42,7 +43,6 @@ function EmptyReplay() {
 function ReplayWorkspace() {
   const view = useReplay((s) => s.view);
   const range = useReplay((s) => s.range);
-  const leftCollapsed = useReplay((s) => s.leftCollapsed);
 
   if (range && range.commits.length === 0) {
     return <EmptyReplay />;
@@ -51,22 +51,10 @@ function ReplayWorkspace() {
   return (
     <div className="workspace">
       <div className="body">
-        {!leftCollapsed && (
-          <>
-            {view === "step" && <StepView />}
-            {view === "snapshot" && <SnapshotView />}
-            {view === "evolution" && <FileEvolution />}
-            {view === "map" && <ChangeMap />}
-          </>
-        )}
-        {leftCollapsed && (
-          <div className="main-panel collapsed">
-            {view === "step" && <StepView />}
-            {view === "snapshot" && <SnapshotView />}
-            {view === "evolution" && <FileEvolution />}
-            {view === "map" && <ChangeMap />}
-          </div>
-        )}
+        {view === "step" && <StepView />}
+        {view === "snapshot" && <SnapshotView />}
+        {view === "evolution" && <FileEvolution />}
+        {view === "map" && <ChangeMap />}
       </div>
       <div className="bottombar">
         <Timeline />
@@ -94,10 +82,13 @@ function App() {
     onToggleCheatsheet: () => setCheatsheetOpen((o) => !o),
   });
 
+  const showShell = repo !== null && screen !== "settings" && screen !== "about";
+
   return (
     <div className="app">
-      {repo && screen !== "settings" && screen !== "about" && <TopBar onOpenPalette={() => setPaletteOpen(true)} />}
+      {showShell && <TopBar onOpenPalette={() => setPaletteOpen(true)} />}
       <div className="app-main">
+        {showShell && <Sidebar onToggleCheatsheet={() => setCheatsheetOpen((o) => !o)} />}
         {screen === "settings" ? (
           <SettingsPage />
         ) : screen === "about" ? (
@@ -111,7 +102,11 @@ function App() {
         )}
         <ChatPanel />
       </div>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onShowCheatsheet={() => setCheatsheetOpen(true)}
+      />
       <Cheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
     </div>
   );

@@ -140,12 +140,15 @@ pub(crate) fn parse_shortstat(text: &str) -> CommitStats {
 }
 
 /// The commit object a diff is computed against, or None for root commits
-/// (diffed against the empty tree).
+/// (diffed against the empty tree). An out-of-range parent index (e.g. a
+/// stale merge-parent selection) falls back to the first parent rather than
+/// panicking — callers must never be able to crash the engine.
 fn diff_parent(meta: &CommitMeta, parent_index: Option<usize>) -> Option<String> {
     if meta.parents.is_empty() {
         None
     } else {
-        Some(meta.parents[parent_index.unwrap_or(0)].clone())
+        let i = parent_index.unwrap_or(0).min(meta.parents.len() - 1);
+        Some(meta.parents[i].clone())
     }
 }
 
@@ -250,6 +253,33 @@ pub fn commit_detail(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::types::Identity;
+
+    fn meta(parents: &[&str]) -> CommitMeta {
+        CommitMeta {
+            sha: "abc123".into(),
+            parents: parents.iter().map(|p| p.to_string()).collect(),
+            author: Identity { name: "a".into(), email: "a@b.c".into() },
+            committer: Identity { name: "a".into(), email: "a@b.c".into() },
+            author_ts: 0,
+            commit_ts: 0,
+            subject: "s".into(),
+            body: String::new(),
+        }
+    }
+
+    #[test]
+    fn diff_parent_clamps_out_of_range_index() {
+        // Root commit: no parent at all.
+        assert_eq!(diff_parent(&meta(&[]), Some(0)), None);
+        // Single-parent commit with a stale second-parent selection must
+        // fall back to the first parent instead of panicking.
+        assert_eq!(diff_parent(&meta(&["p1"]), Some(1)).as_deref(), Some("p1"));
+        assert_eq!(diff_parent(&meta(&["p1"]), Some(0)).as_deref(), Some("p1"));
+        // Merge commit: both parents reachable.
+        assert_eq!(diff_parent(&meta(&["p1", "p2"]), Some(1)).as_deref(), Some("p2"));
+        assert_eq!(diff_parent(&meta(&["p1", "p2"]), Some(9)).as_deref(), Some("p2"));
+    }
 
     #[test]
     fn parses_name_status_records() {

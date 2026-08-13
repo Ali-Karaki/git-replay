@@ -216,7 +216,7 @@ pub async fn commit_demo_fixture(path: String) -> Cmd<()> {
             ("GIT_COMMITTER_NAME", "Self Test"),
             ("GIT_COMMITTER_EMAIL", "selftest@git-replay.local"),
         ];
-        let mut git = |args: &[&str]| {
+        let git = |args: &[&str]| {
             std::process::Command::new("git")
                 .arg("-C").arg(&p).envs(envs.clone()).args(args)
                 .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
