@@ -1,0 +1,11 @@
+/* Design tokens and full app styles land with the UI commits. */
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  background: #111214;
+  color: #e6e8eb;
+}
