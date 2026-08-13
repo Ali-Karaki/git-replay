@@ -13,6 +13,7 @@ import type {
 export type ViewMode = "step" | "snapshot" | "evolution" | "map";
 export type Theme = "system" | "light" | "dark";
 export type DiffMode = "unified" | "split";
+export type Screen = "replay" | "settings" | "about";
 
 /** Session snapshot persisted for "Resume last replay" (spec 40). */
 interface SavedSession {
@@ -54,6 +55,7 @@ interface ReplayState {
   expandedDirs: string[];
   leftCollapsed: boolean;
   // session
+  screen: Screen;
   busy: boolean;
   error: string | null;
   errorDetail: string | null;
@@ -73,6 +75,7 @@ interface ReplayState {
   step(delta: number): void;
   setPlaying(p: boolean): void;
   setView(v: ViewMode): void;
+  setScreen(v: Screen): void;
   setSelectedFile(f: string | null): void;
   toggleDir(dirKey: string): void;
   setError(message: string | null, detail?: string | null): void;
@@ -126,6 +129,7 @@ export const useReplay = create<ReplayState>()(
       groupChapters: false,
       expandedDirs: [],
       leftCollapsed: false,
+      screen: "replay",
       busy: false,
       error: null,
       errorDetail: null,
@@ -290,6 +294,10 @@ export const useReplay = create<ReplayState>()(
 
       setView(v) {
         set({ view: v });
+      },
+
+      setScreen(v) {
+        set({ screen: v, playing: false });
       },
 
       setSelectedFile(f) {

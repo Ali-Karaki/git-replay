@@ -316,7 +316,7 @@ fn cache_deletion_does_not_change_results() {
     let l = linear();
 
     let compute = |cache_dir: Option<std::path::PathBuf>| {
-        let state = AppState::new(cache_dir.map(|d| CacheStore::open(&d.join("cache.db")).expect("cache open")));
+        let state = AppState::new(cache_dir.map(|d| CacheStore::open(&d.join("cache.db")).expect("cache open")), None);
         let info = state.open_repository(l.f.dir.to_str().unwrap()).expect("open");
         let detail = state.commit_detail(info.id, &l.c3, None).expect("detail");
         let diff = state.file_diff(info.id, &l.c3, "src/a.ts", None).expect("diff");
@@ -334,6 +334,27 @@ fn cache_deletion_does_not_change_results() {
 }
 
 // -- stats -------------------------------------------------------------------------
+
+#[test]
+fn clearing_cache_rebuilds_from_git() {
+    let l = linear();
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let db = tmp.path().join("cache.db");
+    let state = AppState::new(Some(CacheStore::open(&db).expect("open")), Some(db.clone()));
+    let info = state.open_repository(l.f.dir.to_str().unwrap()).expect("open");
+    let before = state.commit_detail(info.id, &l.c3, None).expect("detail");
+    assert!(std::fs::metadata(&db).map(|m| m.len() > 0).unwrap_or(false), "cache was populated");
+
+    let cleared = state.clear_cache().expect("clear");
+    // The reopened database is a fresh, empty file (SQLite's initial page
+    // allocation), not the populated one.
+    assert!(cleared.size_bytes <= 100_000, "fresh database after clearing, got {} bytes", cleared.size_bytes);
+
+    // Invariant 6: clearing the cache changes nothing about the results.
+    let after = state.commit_detail(info.id, &l.c3, None).expect("detail after clear");
+    assert_eq!(before.files.len(), after.files.len());
+    assert_eq!(before.stats.insertions, after.stats.insertions);
+}
 
 #[test]
 fn large_diff_stats_match_shortstat() {
@@ -431,7 +452,7 @@ fn working_tree_listing_includes_untracked_dirs() {
     write(&l.f.dir, "scratch/one.ts", "1\n");
     write(&l.f.dir, "scratch/two.ts", "2\n");
 
-    let state = AppState::new(None);
+    let state = AppState::new(None, None);
     let info = state.open_repository(l.f.dir.to_str().unwrap()).expect("open");
     let root = state.tree(info.id, "wt:").expect("wt root");
     assert!(root.iter().any(|e| e.name == "scratch" && e.kind == "tree"), "untracked dir listed");

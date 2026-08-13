@@ -68,6 +68,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }
     cmds.push({ id: "open", label: "Open repository…", run: () => { onClose(); set({ repo: null, range: null }); } });
     cmds.push({ id: "change-range", label: "Change replay range…", hint: "when a repo is open", run: () => { onClose(); set({ range: null }); } });
+    cmds.push({ id: "settings", label: "Settings", run: () => { onClose(); s.setScreen("settings"); } });
+    cmds.push({ id: "about", label: "About Git Replay", run: () => { onClose(); s.setScreen("about"); } });
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, open]);
