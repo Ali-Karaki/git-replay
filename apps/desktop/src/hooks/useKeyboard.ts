@@ -4,6 +4,7 @@
 import { useEffect } from "react";
 import { getCachedCommitDetail } from "../lib/dataCaches";
 import { frameSha, useReplay } from "../stores/replay";
+import { VIEWS } from "../lib/views";
 
 const JUMP = 5;
 
@@ -65,18 +66,6 @@ export function useKeyboard(opts: {
           e.preventDefault();
           s.setIndex(s.range.commits.length);
           break;
-        case "1":
-          s.setView("step");
-          break;
-        case "2":
-          s.setView("snapshot");
-          break;
-        case "3":
-          s.setView("evolution");
-          break;
-        case "4":
-          s.setView("map");
-          break;
         case "/":
           e.preventDefault();
           onFocusSearch();
@@ -98,8 +87,12 @@ export function useKeyboard(opts: {
           st.setSelectedFile(paths[next]);
           break;
         }
-        default:
+        default: {
+          // View keys 1–4 are data-driven from the shared VIEWS table.
+          const v = VIEWS.find((v) => v.key === e.key);
+          if (v) s.setView(v.id);
           break;
+        }
       }
     }
     window.addEventListener("keydown", handler);
