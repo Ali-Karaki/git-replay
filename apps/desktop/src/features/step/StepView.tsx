@@ -61,6 +61,12 @@ export function StepView() {
     () => getFileDiff(repo!.id, sha!, selectedFile!, detail.data!.meta.parents.length > 1 ? mergeParent : null),
   );
 
+  // Keep the selected file visible when navigating with ]/[ or the keyboard.
+  // (Must stay above the conditional returns — Rules of Hooks.)
+  useEffect(() => {
+    document.querySelector(".file-row.selected")?.scrollIntoView({ block: "nearest" });
+  }, [selectedFile, index]);
+
   if (!repo || !range || !sha) return null;
 
   if (isWtFrame) {

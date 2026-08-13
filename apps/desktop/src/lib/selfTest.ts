@@ -68,9 +68,10 @@ function clickByText(selector: string, text: string): boolean {
 }
 
 function setInput(selector: string, value: string): boolean {
-  const el = document.querySelector<HTMLInputElement>(selector);
+  const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
   if (!el) return false;
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  const proto = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")!.set!;
   setter.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
   return true;
@@ -135,10 +136,9 @@ export async function runSelfTest(): Promise<void> {
     const file = detail.files.find((f) => !f.binary);
     if (!file) return false;
     useReplay.getState().setSelectedFile(file.newPath);
-    const ok = await waitFor(".diff-view");
-    if (!ok) return false;
-    const header = document.querySelector(".diff-hunk-row")?.textContent ?? "";
-    return /^@@ -/.test(header);
+    if (!(await waitFor(".diff-view"))) return false;
+    // The first hunk row renders through the virtualizer — poll for it.
+    return await waitForText(".diff-hunk-row", "@@ -", 5000);
   });
   await step("A9 diff toolbar: wrap + split toggles work", async () => {
     click(".diff-toolbar .chip");
@@ -434,6 +434,30 @@ export async function runSelfTest(): Promise<void> {
       return text.includes("scratch-notes.txt");
     });
 
+    await step("B9b symlink and submodule entries render notices", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.subject.includes("symlink and submodule"));
+      if (idx < 0) throw new Error("symlink/submodule commit not in range");
+      useReplay.getState().setIndex(idx + 1);
+      // The symlink/submodule notices live in the snapshot file viewer.
+      useReplay.getState().setView("snapshot");
+      // Wait for THIS commit's tree (the previous frame's tree is still in
+      // the DOM until the listing reloads).
+      if (!(await waitForText(".file-tree", "link.txt", 6000))) {
+        const treeText = document.querySelector(".file-tree")?.textContent ?? "none";
+        throw new Error(`link.txt never appeared in the tree: ${treeText.slice(0, 200)}`);
+      }
+      useReplay.getState().setSelectedFile("link.txt");
+      if (!(await waitForText(".binary-note", "Symbolic link", 5000))) {
+        throw new Error(`no symlink notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`);
+      }
+      useReplay.getState().setSelectedFile("vendor/lib");
+      if (!(await waitForText(".binary-note", "Submodule", 5000))) {
+        throw new Error(`no submodule notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`);
+      }
+      return true;
+    });
+
     await step("B10 repo change is detected and refresh clears the banner", async () => {
       await invoke("commit_demo_fixture", { path: demoPath }).catch(() => undefined);
       const seen = await waitFor(".repo-changed-banner", 9000);
@@ -463,6 +487,25 @@ export async function runSelfTest(): Promise<void> {
       const err = document.querySelector(".range-error")?.textContent ?? "";
       const noCrash = document.querySelector(".crash-panel") === null;
       return noCrash && err.length > 0;
+    });
+
+    await step("B13 chat panel opens and fails gracefully without a key", async () => {
+      useReplay.getState().setScreen("replay");
+      useReplay.setState({ range: null });
+      await waitFor(".range-setup");
+      click(".chat-trigger");
+      if (!(await waitFor(".chat-panel", 3000))) throw new Error("chat panel did not open");
+      // Send without a key: the engine must respond with a friendly error.
+      setInput(".chat-input", "hello");
+      await wait(100);
+      clickByText(".chat-input-actions .btn", "Send");
+      if (!(await waitForText(".chat-messages", "No API key", 8000))) {
+        throw new Error(`no friendly key error; messages: ${document.querySelector(".chat-messages")?.textContent?.slice(0, 200)}`);
+      }
+      const noCrash = document.querySelector(".crash-panel") === null;
+      click(".chat-header-actions .btn-icon:last-child"); // close
+      await wait(200);
+      return noCrash && document.querySelector(".chat-panel") === null;
     });
   }
 

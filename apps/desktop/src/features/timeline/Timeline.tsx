@@ -130,8 +130,8 @@ export function Timeline() {
       const first = layout.buckets[0];
       const last = layout.buckets[layout.buckets.length - 1];
       const fmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-      ctx.fillText(fmt(first.day * 86_400), TIMELINE_PAD, TIMELINE_HEIGHT - 4);
-      const lastLabel = fmt(last.day * 86_400);
+      ctx.fillText(fmt(first.dayStart), TIMELINE_PAD, TIMELINE_HEIGHT - 4);
+      const lastLabel = fmt(last.dayStart);
       ctx.fillText(lastLabel, width - TIMELINE_PAD - ctx.measureText(lastLabel).width, TIMELINE_HEIGHT - 4);
     } else {
       // Per-commit marks; head/base labels drawn when they fit.

@@ -3,6 +3,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { invoke } from "@tauri-apps/api/core";
 import { api } from "../lib/ipc";
 import { clearCaches } from "../lib/dataCaches";
 import type {
@@ -69,6 +70,7 @@ interface ReplayState {
   configureRange(baseRef: string | null, headRef: string | null, useMergeBase: boolean, firstParent: boolean): Promise<boolean>;
   resolvePr(prInput: string, version: string | null): Promise<boolean>;
   finishResolve(range: ReplayRange, pr: PrReplay | null): void;
+  createDemoRepo(): Promise<boolean>;
   loadWorkingTree(): Promise<void>;
   resumeSession(): Promise<boolean>;
   reset(): void;
@@ -234,6 +236,24 @@ export const useReplay = create<ReplayState>()(
         } catch (e) {
           const err = e as { message?: string };
           set({ error: err.message ?? String(e) });
+        }
+      },
+
+      /** One-click onboarding: build the demo fixture and open it. */
+      async createDemoRepo() {
+        set({ busy: true, error: null, errorDetail: null });
+        try {
+          const path = await invoke<string | null>("ensure_demo_fixture");
+          if (!path) throw new Error("the demo repository could not be created");
+          const ok = await get().openRepo(path);
+          if (!ok) return false;
+          // The demo repo's whole story: root → HEAD.
+          await get().configureRange("", null, false, false);
+          return true;
+        } catch (e) {
+          const err = e as { message?: string };
+          set({ busy: false, error: err.message ?? String(e) });
+          return false;
         }
       },
 

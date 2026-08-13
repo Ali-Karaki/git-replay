@@ -85,6 +85,15 @@ printf '\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x10\x00\x00\x00\x10' >
 printf 'demo assets' > assets/readme.txt
 git add -A && git commit -qm "add assets (binary + text)"
 
+# 6b. Symlink entry (mode 120000) + gitlink (mode 160000, submodule without a
+# real clone) — staged via update-index and committed directly, since
+# `git add -A` would stage their deletion.
+printf 'target.txt' > .git/symlink-target-tmp
+BLOB=$(git hash-object -w .git/symlink-target-tmp)
+git update-index --add --cacheinfo "120000,$BLOB,link.txt"
+git update-index --add --cacheinfo "160000,0123456789012345678901234567890123456789,vendor/lib"
+git commit -qm "add symlink and submodule entries"
+
 # 7. Queue abstraction.
 cat > src/queue.ts <<'EOF'
 type Job = { id: string; payload: unknown };

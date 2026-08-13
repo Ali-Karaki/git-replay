@@ -18,6 +18,8 @@ import { Transport } from "./features/transport/Transport";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { AboutPage } from "./features/about/AboutPage";
+import { Cheatsheet } from "./features/shell/Cheatsheet";
+import { ChatPanel } from "./features/chat/ChatPanel";
 import { focusSearch } from "./features/search/SearchBar";
 
 /** An empty range is valid git semantics (base == head), but silently showing
@@ -79,6 +81,7 @@ function App() {
   const range = useReplay((s) => s.range);
   const screen = useReplay((s) => s.screen);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
 
   usePlayback();
   usePrefetch();
@@ -88,23 +91,28 @@ function App() {
     onOpenPalette: () => setPaletteOpen(true),
     onClosePalette: () => setPaletteOpen(false),
     onFocusSearch: focusSearch,
+    onToggleCheatsheet: () => setCheatsheetOpen((o) => !o),
   });
 
   return (
     <div className="app">
       {repo && screen !== "settings" && screen !== "about" && <TopBar onOpenPalette={() => setPaletteOpen(true)} />}
-      {screen === "settings" ? (
-        <SettingsPage />
-      ) : screen === "about" ? (
-        <AboutPage />
-      ) : !repo ? (
-        <Welcome />
-      ) : !range ? (
-        <RangeSetup />
-      ) : (
-        <ReplayWorkspace />
-      )}
+      <div className="app-main">
+        {screen === "settings" ? (
+          <SettingsPage />
+        ) : screen === "about" ? (
+          <AboutPage />
+        ) : !repo ? (
+          <Welcome />
+        ) : !range ? (
+          <RangeSetup />
+        ) : (
+          <ReplayWorkspace />
+        )}
+        <ChatPanel />
+      </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <Cheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
     </div>
   );
 }
