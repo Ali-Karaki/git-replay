@@ -70,6 +70,7 @@ export function buildTimelineLayout(
   hasWt: boolean,
   width: number,
   zoom: number | "fit",
+  scroll = 0,
 ): TimelineLayout {
   const n = range.commits.length + (hasWt ? 1 : 0); // frames = n + 1
   const usable = width - TIMELINE_PAD * 2;
@@ -78,12 +79,14 @@ export function buildTimelineLayout(
 
   if (!aggregated) {
     pxPer = Math.min(pxPer, MAX_PX_PER_COMMIT);
+    const maxScroll = Math.max(0, n * pxPer - usable);
+    const sc = Math.min(Math.max(scroll, 0), maxScroll);
     return {
       pxPer,
       aggregated: false,
       buckets: null,
-      xOf: (i) => TIMELINE_PAD + i * pxPer,
-      frameAt: (x) => Math.round((x - TIMELINE_PAD) / pxPer),
+      xOf: (i) => TIMELINE_PAD - sc + i * pxPer,
+      frameAt: (x) => Math.round((x - TIMELINE_PAD + sc) / pxPer),
     };
   }
 

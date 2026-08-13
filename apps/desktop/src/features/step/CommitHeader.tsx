@@ -5,6 +5,7 @@ import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CommitDetail } from "../../lib/types";
 import { formatCount, formatDateTime, shortSha } from "../../lib/format";
+import { copyText } from "../../lib/clipboard";
 import { api } from "../../lib/ipc";
 import { useData } from "../../lib/useData";
 import { useReplay } from "../../stores/replay";
@@ -24,7 +25,7 @@ export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commi
   );
 
   const copySha = () => {
-    void navigator.clipboard.writeText(meta.sha);
+    void copyText(meta.sha);
   };
 
   return (

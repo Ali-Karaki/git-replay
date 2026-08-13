@@ -25,10 +25,12 @@ export function Timeline() {
   const range = useReplay((s) => s.range);
   const index = useReplay((s) => s.index);
   const zoom = useReplay((s) => s.timelineZoom);
+  const scroll = useReplay((s) => s.timelineScroll);
   const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
   const groupChapters = useReplay((s) => s.groupChapters);
   const setIndex = useReplay((s) => s.setIndex);
   const setTimelineZoom = useReplay((s) => s.setTimelineZoom);
+  const setTimelineScroll = useReplay((s) => s.setTimelineScroll);
 
   const chapters = useMemo(() => (range ? computeChapters(range, hasWorkingTree) : []), [range, hasWorkingTree]);
   const totalFrames = range ? range.commits.length + 1 + (hasWorkingTree ? 1 : 0) : 0;
@@ -46,7 +48,7 @@ export function Timeline() {
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
-    const layout = buildTimelineLayout(range, hasWorkingTree, width, zoom);
+    const layout = buildTimelineLayout(range, hasWorkingTree, width, zoom, scroll);
     const cy = TIMELINE_HEIGHT / 2;
     const node = cssVar("--tl-node", "#4a5162");
     const accent = cssVar("--accent", "#4f7dff");
@@ -182,7 +184,7 @@ export function Timeline() {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-  }, [range, index, zoom, hoverIdx, hasWorkingTree, groupChapters, chapters, n]);
+  }, [range, index, zoom, scroll, hoverIdx, hasWorkingTree, groupChapters, chapters, n]);
 
   useEffect(() => {
     const raf = requestAnimationFrame(redraw);
@@ -206,7 +208,7 @@ export function Timeline() {
     const canvas = canvasRef.current;
     if (!canvas) return 0;
     const rect = canvas.getBoundingClientRect();
-    const layout = buildTimelineLayout(range, hasWorkingTree, rect.width, zoom);
+    const layout = buildTimelineLayout(range, hasWorkingTree, rect.width, zoom, scroll);
     const idx = layout.frameAt(clientX - rect.left);
     return Math.min(Math.max(idx, 0), n);
   };
@@ -245,18 +247,43 @@ export function Timeline() {
     dragState.current.dragging = false;
   };
 
+  // Wheel: zoom around the cursor (anchoring the frame under the pointer);
+  // Shift+wheel pans once zoomed in. Fit mode zooms in from the cursor.
   const onWheel = (e: React.WheelEvent) => {
-    const current = zoom === "fit" ? 12 : zoom;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = e.clientX - rect.left;
+    const usable = rect.width - TIMELINE_PAD * 2;
+    const current = zoom === "fit" ? usable / Math.max(n, 1) : zoom;
+
+    if (zoom !== "fit" && e.shiftKey) {
+      const maxScroll = Math.max(0, n * current - usable);
+      setTimelineScroll(Math.min(Math.max(scroll + e.deltaY, 0), maxScroll));
+      return;
+    }
+    if (zoom === "fit" && e.deltaY > 0) return; // wheel-down at fit = already zoomed out
+
     const factor = e.deltaY < 0 ? 1.25 : 0.8;
     const next = Math.min(Math.max(current * factor, 2), MAX_PX_PER_COMMIT);
+    const anchorFrame = (mouseX - TIMELINE_PAD + scroll) / current;
+    const maxScroll = Math.max(0, n * next - usable);
+    const nextScroll = TIMELINE_PAD + anchorFrame * next - mouseX;
     setTimelineZoom(next);
+    setTimelineScroll(Math.min(Math.max(nextScroll, 0), maxScroll));
   };
 
-  const zoomIn = () => setTimelineZoom(Math.min((zoom === "fit" ? 12 : zoom) * 1.5, MAX_PX_PER_COMMIT));
+  const zoomIn = () => {
+    setTimelineZoom(Math.min((zoom === "fit" ? 12 : zoom) * 1.5, MAX_PX_PER_COMMIT));
+  };
   const zoomOut = () => {
     const current = zoom === "fit" ? 12 : zoom;
     const next = current / 1.5;
-    setTimelineZoom(next < 2 ? "fit" : next);
+    if (next < 2) {
+      setTimelineZoom("fit");
+      setTimelineScroll(0);
+    } else {
+      setTimelineZoom(next);
+    }
   };
 
   return (
@@ -278,7 +305,7 @@ export function Timeline() {
           chapters
         </button>
         <button className="btn-icon" onClick={zoomOut} title="Zoom out (fit when far)" aria-label="Zoom out"><ZoomOutIcon size={13} /></button>
-        <button className="btn-icon" onClick={() => setTimelineZoom("fit")} title="Fit to width" aria-label="Fit to width"
+        <button className="btn-icon" onClick={() => { setTimelineZoom("fit"); setTimelineScroll(0); }} title="Fit to width" aria-label="Fit to width"
           style={{ fontSize: 10, fontWeight: 600, minWidth: 22 }}>{zoom === "fit" ? "≡" : `${Math.round(zoom)}px`}</button>
         <button className="btn-icon" onClick={zoomIn} title="Zoom in" aria-label="Zoom in"><ZoomInIcon size={13} /></button>
       </div>

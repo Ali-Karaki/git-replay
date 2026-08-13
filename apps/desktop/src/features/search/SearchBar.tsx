@@ -33,13 +33,15 @@ export function SearchBar() {
     }
     const id = ++seq.current;
     const timer = window.setTimeout(() => {
-      api.searchReplay(repo.id, range.baseSha, range.headSha, query, 30).then((r) => {
-        if (seq.current === id) {
-          setResults(r);
-          setSelected(0);
-          setOpen(true);
-        }
-      });
+      api.searchReplay(repo.id, range.baseSha, range.headSha, query, 30)
+        .then((r) => {
+          if (seq.current === id) {
+            setResults(r);
+            setSelected(0);
+            setOpen(true);
+          }
+        })
+        .catch(() => undefined); // mid-transition rejections are not user-facing
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query, repo, range]);
@@ -83,6 +85,7 @@ export function SearchBar() {
             <button key={r.sha} className={`search-result ${i === selected ? "selected" : ""}`} onClick={() => jump(r)}>
               <span className="dim">{shortSha(r.sha)}</span>
               <span className="search-result-subject">{r.subject}</span>
+              <span className="search-kind" title={`Matched by ${r.kind === "content" ? "changed content (pickaxe)" : r.kind}`}>{r.kind}</span>
               <span className="dim">{formatDateTime(r.commitTs)}</span>
             </button>
           ))}

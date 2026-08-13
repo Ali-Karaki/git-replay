@@ -54,7 +54,11 @@ export function FileEvolution() {
 
   if (!repo || !range) return null;
   if (!selectedFile) {
-    return <div className="empty-mini">Select a file (from Snapshot view or the changed files) to follow its evolution.</div>;
+    return (
+      <div className="view-evolution">
+        <div className="empty-mini">Select a file (from Snapshot view or the changed files) to follow its evolution.</div>
+      </div>
+    );
   }
 
   if (evolution.loading && !evolution.data) return <Skeleton rows={10} />;

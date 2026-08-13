@@ -79,13 +79,15 @@ function WordHighlighted({ text, pair }: { text: string; pair: { prefix: string;
 interface UnifiedRow {
   kind: "hunk" | "line";
   line?: DiffLine;
+  header?: string;
 }
 
 function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; lang: string | null; wrap: boolean; scrollKey: string | null }) {
   const rows = useMemo<UnifiedRow[]>(() => {
     const out: UnifiedRow[] = [];
     for (const hunk of parsed.hunks) {
-      out.push({ kind: "hunk" });
+      const header = `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`;
+      out.push({ kind: "hunk", header });
       for (const line of hunk.lines) out.push({ kind: "line", line });
     }
     return out;
@@ -113,7 +115,7 @@ function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; la
           if (row.kind === "hunk") {
             return (
               <div key={vi.key} className="diff-hunk-row" style={{ transform: `translateY(${vi.start}px)` }}>
-                @@ hunk @@
+                {row.header}
               </div>
             );
           }
@@ -215,7 +217,23 @@ export function DiffView({ patch, oldPath, newPath }: { patch: string | null; ol
     );
   }
 
-  if (!parsed || (parsed.hunks.length === 0 && !parsed.binary)) {
+  if (!parsed) {
+    return <div className="empty-mini">No textual changes.</div>;
+  }
+  if (parsed.binary && parsed.hunks.length === 0) {
+    // A binary marker with no hunks: show the binary notice, not an empty
+    // text toolbar.
+    return (
+      <div className="binary-note">
+        <WarningIcon size={16} />
+        <div>
+          <strong>Binary file</strong>
+          <p>Git reports this file as binary — no text diff is available.</p>
+        </div>
+      </div>
+    );
+  }
+  if (parsed.hunks.length === 0) {
     return <div className="empty-mini">No textual changes.</div>;
   }
 

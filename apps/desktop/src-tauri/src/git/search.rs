@@ -31,9 +31,9 @@ pub fn search_replay(repo: &Repo, base: &str, head: &str, query: &str, limit: u3
 
     let mut results: Vec<SearchResult> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut push = |sha: String, subject: String, ts: i64| {
+    let mut push = |kind: &str, sha: String, subject: String, ts: i64| {
         if seen.insert(sha.clone()) {
-            results.push(SearchResult { sha, subject, commit_ts: ts });
+            results.push(SearchResult { sha, subject, commit_ts: ts, kind: kind.to_string() });
         }
     };
 
@@ -52,7 +52,7 @@ pub fn search_replay(repo: &Repo, base: &str, head: &str, query: &str, limit: u3
         ];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("search failed", e))?;
         for (sha, subject, ts) in parse_log_short(&out) {
-            push(sha, subject, ts);
+            push("message", sha, subject, ts);
         }
     }
 
@@ -70,7 +70,7 @@ pub fn search_replay(repo: &Repo, base: &str, head: &str, query: &str, limit: u3
         ];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("search failed", e))?;
         for (sha, subject, ts) in parse_log_short(&out) {
-            push(sha, subject, ts);
+            push("path", sha, subject, ts);
         }
     }
 
@@ -88,7 +88,7 @@ pub fn search_replay(repo: &Repo, base: &str, head: &str, query: &str, limit: u3
         ];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("search failed", e))?;
         for (sha, subject, ts) in parse_log_short(&out) {
-            push(sha, subject, ts);
+            push("content", sha, subject, ts);
         }
     }
 

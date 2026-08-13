@@ -91,14 +91,14 @@ pub fn working_file_diff(repo: &Repo, path: &str) -> Result<crate::git::types::F
         let args: Vec<&str> = vec!["diff", "HEAD", "--no-ext-diff", "--no-color", "-M", "--", path];
         let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not compute working tree diff", e))?;
         let text = lossy(&out);
-        let binary = text.starts_with("Binary files ") || text.contains("GIT binary patch");
+        let binary = text.starts_with("Binary files ") || text.contains("\nBinary files ") || text.contains("GIT binary patch");
         if text.trim().is_empty() {
             // Staged-only changes show nothing vs HEAD when the index matches
             // HEAD — fall back to the staged diff.
             let args: Vec<&str> = vec!["diff", "--cached", "--no-ext-diff", "--no-color", "-M", "--", path];
             let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not compute working tree diff", e))?;
             let text = lossy(&out);
-            let binary = text.starts_with("Binary files ") || text.contains("GIT binary patch");
+            let binary = text.starts_with("Binary files ") || text.contains("\nBinary files ") || text.contains("GIT binary patch");
             return Ok(crate::git::types::FileDiff { patch: if binary { None } else { Some(text) }, binary });
         }
         return Ok(crate::git::types::FileDiff { patch: if binary { None } else { Some(text) }, binary });

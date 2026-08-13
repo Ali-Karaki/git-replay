@@ -32,8 +32,9 @@ pub fn file_diff(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>, pa
     let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not compute file diff", e))?;
     let text = lossy(&out);
 
-    // Binary diffs announce themselves with a stable marker line.
-    let binary = text.starts_with("Binary files ") || text.contains("GIT binary patch");
+    // Binary diffs announce themselves with a stable marker line — which sits
+    // AFTER the "diff --git" header lines, so both positions must match.
+    let binary = text.starts_with("Binary files ") || text.contains("\nBinary files ") || text.contains("GIT binary patch");
 
     Ok(FileDiff { patch: if binary { None } else { Some(text) }, binary })
 }

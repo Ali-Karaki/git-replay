@@ -118,4 +118,17 @@ describe("buildTimelineLayout", () => {
   it("uses the minimum aggregation threshold", () => {
     expect(MIN_PX_PER_COMMIT).toBe(3);
   });
+
+  it("pans when zoomed in (scroll offset shifts and clamps)", () => {
+    const { range, hasWt } = makeRange(commits);
+    const layout = buildTimelineLayout(range, hasWt, 300, 10, 50);
+    expect(layout.aggregated).toBe(false);
+    // xOf shifts by the scroll offset.
+    expect(layout.xOf(0)).toBe(TIMELINE_PAD - 50);
+    // frameAt inverts the offset.
+    expect(layout.frameAt(TIMELINE_PAD - 50)).toBe(0);
+    // Scroll clamps at the content end.
+    const clamped = buildTimelineLayout(range, hasWt, 300, 10, 99999);
+    expect(clamped.frameAt(300 - TIMELINE_PAD)).toBeLessThanOrEqual(100);
+  });
 });

@@ -325,3 +325,28 @@
 .selftest-card li.ok b { color: var(--add); }
 .selftest-card li.fail b { color: var(--del); }
 .selftest-card .btn { margin-top: 10px; }
+
+/* -- audit-driven polish ------------------------------------------------------------------ */
+
+.playing-subject {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  margin-left: 10px;
+  font-size: 11.5px;
+}
+.search-kind {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.welcome-hint { font-size: 11.5px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+button:focus:not(:focus-visible) { outline: none; }

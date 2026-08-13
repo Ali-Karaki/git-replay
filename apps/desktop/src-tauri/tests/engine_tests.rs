@@ -202,6 +202,15 @@ fn binary_files_are_flagged() {
     assert!(png.binary, "binary file must be flagged");
     let txt = detail.files.iter().find(|f| f.new_path == "notes.txt").expect("txt present");
     assert!(!txt.binary, "txt flagged binary — files: {:#?}", detail.files);
+
+    // The FILE DIFF must also report binary — the "Binary files …" marker
+    // sits after the diff headers, and the engine must find it there.
+    let diff = git::diff::file_diff(&r, &meta, None, "assets/image.png").expect("file diff");
+    assert!(diff.binary, "file diff must be flagged binary");
+    assert!(diff.patch.is_none(), "binary diffs carry no patch");
+    let text_diff = git::diff::file_diff(&r, &meta, None, "notes.txt").expect("text diff");
+    assert!(!text_diff.binary);
+    assert!(text_diff.patch.is_some());
 }
 
 // -- snapshots match git -------------------------------------------------------

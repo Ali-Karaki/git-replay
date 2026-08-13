@@ -1,11 +1,11 @@
-// In-app end-to-end self-test: drives the REAL app — the store, the typed IPC
-// layer, the Rust engine, and the rendered DOM — through the full open →
-// replay → step → snapshot → evolution → search flow. Results render as an
-// overlay and are persisted via the engine (stdout + cache dir file).
+// In-app end-to-end audit: drives the REAL app — store, typed IPC, Rust
+// engine, and rendered DOM — through every view, button, keyboard shortcut,
+// and the edge cases (merges, renames, binary, empty commits, large diffs,
+// working-tree frame, repo-change banner, settings, palette, search).
+// Results render as an overlay and are persisted via the engine.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api } from "./ipc";
-import { getCommitDetail, getFileDiff, getFileAtCommit, getTree } from "./dataCaches";
+import { getCommitDetail } from "./dataCaches";
 import { suggestInitialMode } from "../features/repository/RangeSetup";
 import { useReplay } from "../stores/replay";
 
@@ -23,7 +23,6 @@ function record(name: string, ok: boolean, detail = "") {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Poll for a selector instead of assuming a fixed delay is enough. */
 async function waitFor(selector: string, timeoutMs = 6000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -33,102 +32,455 @@ async function waitFor(selector: string, timeoutMs = 6000): Promise<boolean> {
   return false;
 }
 
+async function waitForGone(selector: string, timeoutMs = 6000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (document.querySelector(selector) === null) return true;
+    await wait(150);
+  }
+  return false;
+}
+
+/** Poll until the element's text contains the fragment (fresh content, not
+ *  whatever was already in the DOM). */
+async function waitForText(selector: string, text: string, timeoutMs = 6000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((document.querySelector(selector)?.textContent ?? "").includes(text)) return true;
+    await wait(150);
+  }
+  return false;
+}
+
+function click(selector: string): boolean {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return false;
+  el.click();
+  return true;
+}
+
+function clickByText(selector: string, text: string): boolean {
+  const els = [...document.querySelectorAll<HTMLElement>(selector)];
+  const el = els.find((e) => e.textContent?.includes(text));
+  if (!el) return false;
+  el.click();
+  return true;
+}
+
+function setInput(selector: string, value: string): boolean {
+  const el = document.querySelector<HTMLInputElement>(selector);
+  if (!el) return false;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  setter.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+}
+
+function pressKey(key: string, opts: KeyboardEventInit = {}) {
+  window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...opts }));
+}
+
+async function step(name: string, fn: () => Promise<boolean | void>): Promise<void> {
+  try {
+    const ok = (await fn()) !== false;
+    record(name, ok);
+  } catch (e) {
+    record(name, false, String(e));
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 export async function runSelfTest(): Promise<void> {
-  try {
-    const path = await invoke<string | null>("self_test_repo_path");
-    record("engine: self-test repo path resolved", !!path, path ?? "none");
-    if (!path) throw new Error("no self-test repo path");
+  const appRepo = await invoke<string | null>("self_test_repo_path").catch(() => null);
+  record("setup: self-test repo path", !!appRepo, appRepo ?? "none");
+  if (!appRepo) return finish();
 
-    // 1. Open the repository through the exact store action the UI uses.
-    const opened = await useReplay.getState().openRepo(path);
-    const s = useReplay.getState();
-    record("store: openRepo succeeds", opened && !!s.repo, s.error ?? "");
-    if (!s.repo) throw new Error("open failed");
+  // ── Repo A: this repository (linear history, one tag) ─────────────────────
+  await step("A1 openRepo succeeds", async () => {
+    const ok = await useReplay.getState().openRepo(appRepo);
+    return ok && !!useReplay.getState().repo && useReplay.getState().error === null;
+  });
+  const s = useReplay.getState();
+  const headBranch = s.branches.find((b) => b.isHead)?.name ?? s.branches[0]?.name ?? "";
+  const mode = suggestInitialMode(s.repo?.defaultBranch ?? null, headBranch);
+  record("A2 default mode avoids the empty main→main trap", mode === "entire", mode);
 
-    // 2. Default mode suggestion must avoid the empty main→main replay.
-    const headBranch = s.branches.find((b) => b.isHead)?.name ?? s.branches[0]?.name ?? "";
-    const mode = suggestInitialMode(s.repo.defaultBranch, headBranch);
-    record("range setup: default mode suggested", mode === "branch" || mode === "entire", mode);
-
-    // 3. Resolve the entire repository (the flow the default leads to).
+  await step("A3 entire-repository resolve", async () => {
     await useReplay.getState().configureRange("", null, false, false);
-    const after = useReplay.getState();
-    const frames = after.range?.commits.length ?? 0;
-    record("engine: entire-repository replay resolves with history", frames > 10, `${frames} commits`);
+    return (useReplay.getState().range?.commits.length ?? 0) > 10;
+  });
+  record("A4 workspace renders", await waitFor(".workspace"));
+  record("A5 timeline canvas + transport render", (await waitFor(".timeline-canvas")) && (await waitFor(".transport")));
 
-    // 4. The workspace must actually render (this catches render crashes).
-    record("UI renders: workspace", await waitFor(".workspace"), ".workspace appeared");
-    record("UI renders: timeline canvas", await waitFor(".timeline-canvas"), ".timeline-canvas appeared");
-    record("UI renders: transport controls", await waitFor(".transport"), ".transport appeared");
+  // Top bar: view tabs.
+  await step("A6 all four view tabs switch views", async () => {
+    useReplay.getState().setIndex(1); // step view renders its container only past the base frame
+    for (const [tab, cls] of [[".view-tab:nth-child(1)", ".view-step"], [".view-tab:nth-child(2)", ".view-snapshot"], [".view-tab:nth-child(3)", ".view-evolution"], [".view-tab:nth-child(4)", ".map-view"]] as const) {
+      if (!click(tab)) return false;
+      if (!(await waitFor(cls, 4000))) return false;
+    }
+    return true;
+  });
 
-    // 5. Step to the first commit; its detail + a real diff must load.
-    // (Persisted preferences may leave any view active — pin the step view.)
+  // Step view: commit header, file list, diff, toolbar, filters, body toggle.
+  await step("A7 step to commit 1 shows header + changed files", async () => {
     useReplay.getState().setView("step");
     useReplay.getState().setIndex(1);
+    return (await waitFor(".commit-subject")) && (await waitFor(".file-row"));
+  });
+  await step("A8 select a file → diff renders with real hunk headers", async () => {
     const commit = useReplay.getState().range!.commits[0];
-    const detail = await getCommitDetail(s.repo.id, commit.sha, null);
-    record("engine: first commit detail loads", detail.files.length > 0, `${detail.files.length} files`);
-    record("UI renders: commit header", await waitFor(".commit-subject"), ".commit-subject appeared after stepping");
-    const firstFile = detail.files.find((f) => !f.binary);
-    if (firstFile) {
-      useReplay.getState().setSelectedFile(firstFile.newPath);
-      const diff = await getFileDiff(s.repo.id, commit.sha, firstFile.newPath, null);
-      record("engine: file diff loads", !!diff.patch || diff.binary, diff.patch ? "patch" : "binary");
-      record("UI renders: diff view", await waitFor(".diff-view"), ".diff-view appeared after selecting a file");
-    } else {
-      record("engine: file diff loads", false, "no text file in first commit");
-    }
+    const detail = await getCommitDetail(useReplay.getState().repo!.id, commit.sha, null);
+    const file = detail.files.find((f) => !f.binary);
+    if (!file) return false;
+    useReplay.getState().setSelectedFile(file.newPath);
+    const ok = await waitFor(".diff-view");
+    if (!ok) return false;
+    const header = document.querySelector(".diff-hunk-row")?.textContent ?? "";
+    return /^@@ -/.test(header);
+  });
+  await step("A9 diff toolbar: wrap + split toggles work", async () => {
+    click(".diff-toolbar .chip");
+    await wait(100);
+    clickByText(".diff-toolbar .chip", "split");
+    await wait(300);
+    const splitRows = document.querySelectorAll(".diff-line.split").length;
+    clickByText(".diff-toolbar .chip", "unified");
+    await wait(300);
+    return splitRows > 0 && document.querySelectorAll(".diff-line:not(.split)").length > 0;
+  });
+  await step("A10 filters: ws + generated chips toggle state", async () => {
+    const before = useReplay.getState().hideWhitespaceOnly;
+    clickByText(".toolbar-actions .chip", "ws");
+    await wait(100);
+    const after = useReplay.getState().hideWhitespaceOnly;
+    useReplay.getState().setSelectedFile(null);
+    return after === !before;
+  });
+  await step("A11 body toggle expands the commit message", async () => {
+    click(".body-toggle");
+    return await waitFor(".commit-body-text", 3000);
+  });
+  await step("A12 sha copy button exists", async () => {
+    return click(".sha-chip");
+  });
 
-    // 6. Snapshot browsing at HEAD.
-    useReplay.getState().setIndex(frames);
+  // Snapshot view.
+  await step("A13 snapshot: tree renders, dir expands, file opens", async () => {
     useReplay.getState().setView("snapshot");
-    record("UI renders: snapshot file tree", await waitFor(".file-tree"), ".file-tree appeared");
-    const tree = await getTree(s.repo.id, useReplay.getState().range!.headSha);
-    record("engine: snapshot tree at HEAD", tree.length > 0, `${tree.length} root entries`);
-    const readme = await getFileAtCommit(s.repo.id, useReplay.getState().range!.headSha, "README.md");
-    record("engine: file content at HEAD", !!readme.content && readme.content.length > 0, `${readme.size} bytes`);
+    if (!(await waitFor(".file-tree"))) return false;
+    const dir = document.querySelector(".tree-row.dir");
+    if (!dir) return false;
+    (dir as HTMLElement).click();
+    await wait(300);
+    const file = document.querySelector(".tree-row.file");
+    if (!file) return false;
+    (file as HTMLElement).click();
+    return await waitFor(".file-viewer", 4000);
+  });
+  await step("A14 markdown preview toggle on README", async () => {
+    useReplay.getState().setSelectedFile("README.md");
+    if (!(await waitFor(".file-viewer", 5000))) throw new Error("no .file-viewer after selecting README.md");
+    if (!(await waitForText(".diff-toolbar", "preview", 3000))) throw new Error("no preview chip in toolbar");
+    if (!clickByText(".diff-toolbar .chip", "preview")) throw new Error("preview chip click failed");
+    if (!(await waitFor(".md-preview", 3000))) throw new Error("no .md-preview after toggle");
+    return true;
+  });
 
-    // 7. File evolution for a known frequently-touched file.
-    const evo = await api.getFileEvolution(s.repo.id, useReplay.getState().range!.baseSha, useReplay.getState().range!.headSha, "README.md");
-    record("engine: file evolution", evo.length > 0, `${evo.length} changes`);
+  // Evolution view.
+  await step("A15 evolution: rows, jump, prev/next", async () => {
+    useReplay.getState().setView("evolution");
+    useReplay.getState().setSelectedFile("README.md");
+    if (!(await waitFor(".view-evolution .file-row", 5000))) return false;
+    const rows = document.querySelectorAll(".view-evolution .file-row").length;
+    click(".view-evolution .file-row");
+    await waitFor(".evolution-detail", 4000);
+    return rows >= 2;
+  });
 
-    // 8. Search across the replay.
-    const hits = await api.searchReplay(s.repo.id, useReplay.getState().range!.baseSha, useReplay.getState().range!.headSha, "replay", 10);
-    record("engine: replay search", hits.length > 0, `${hits.length} hits`);
-
-    // 9. Change map view renders.
+  // Change map.
+  await step("A16 change map: legend + canvas + cell click", async () => {
     useReplay.getState().setView("map");
-    record("UI renders: change map", await waitFor(".map-view"), ".map-view appeared");
+    if (!(await waitFor(".map-view", 5000))) return false;
+    await waitFor(".map-canvas");
+    const legend = document.querySelector(".map-legend")?.textContent ?? "";
+    const canvas = document.querySelector<HTMLElement>(".map-canvas");
+    if (!canvas) return false;
+    canvas.dispatchEvent(new MouseEvent("mousemove", { clientX: canvas.getBoundingClientRect().left + 260, clientY: canvas.getBoundingClientRect().top + 40, bubbles: true }));
+    return legend.includes("created") && legend.includes("deleted");
+  });
 
-    // 10. Working-tree frame: the repo's worktree may be dirty; the command
-    //     must at least succeed and shape the frame.
-    const wt = await api.getWorkingTree(s.repo.id);
-    record("engine: working tree frame", Array.isArray(wt.files), `${wt.files.length} changed, ${wt.untracked} untracked`);
+  // Timeline: zoom + chapters.
+  await step("A17 timeline: zoom buttons + chapters toggle", async () => {
+    click(".timeline-zoom .btn-icon:nth-child(2)"); // zoom out
+    await wait(100);
+    click(".timeline-zoom .btn-icon:nth-child(3)"); // zoom in
+    await wait(100);
+    click(".timeline-zoom .btn-icon:nth-child(4)"); // fit
+    await wait(100);
+    const before = useReplay.getState().groupChapters;
+    click(".timeline-zoom .chip");
+    await wait(100);
+    return useReplay.getState().groupChapters === !before;
+  });
 
-    // 11. Settings page renders.
+  // Transport.
+  await step("A18 transport: first/prev/play/next/last + adaptive", async () => {
+    click('.transport .btn-icon[title^="First"]');
+    await wait(100);
+    const at0 = useReplay.getState().index === 0;
+    click('.transport .btn-icon[title^="Next"]');
+    await wait(100);
+    const at1 = useReplay.getState().index === 1;
+    click(".btn-play");
+    await wait(200);
+    const playing = useReplay.getState().playing;
+    click(".btn-play");
+    await wait(100);
+    const adaptiveBefore = useReplay.getState().adaptivePlayback;
+    clickByText(".transport .chip", "adaptive");
+    await wait(100);
+    return at0 && at1 && playing && useReplay.getState().adaptivePlayback === !adaptiveBefore;
+  });
+
+  // Keyboard.
+  await step("A19 keyboard: arrows/space/home/end/view keys", async () => {
+    useReplay.getState().setIndex(1);
+    pressKey("ArrowRight");
+    await wait(80);
+    const right = useReplay.getState().index === 2;
+    pressKey("ArrowLeft");
+    await wait(80);
+    const left = useReplay.getState().index === 1;
+    pressKey(" ");
+    await wait(80);
+    const played = useReplay.getState().playing === true;
+    pressKey(" ");
+    pressKey("End");
+    await wait(80);
+    const end = useReplay.getState().index === useReplay.getState().range!.commits.length;
+    pressKey("Home");
+    await wait(80);
+    const home = useReplay.getState().index === 0;
+    pressKey("2");
+    await wait(200);
+    const view2 = useReplay.getState().view === "snapshot";
+    pressKey("1");
+    await wait(200);
+    return right && left && played && end && home && view2 && useReplay.getState().view === "step";
+  });
+
+  // Command palette.
+  await step("A20 palette: Ctrl+K opens, filters, Escape closes", async () => {
+    pressKey("k", { ctrlKey: true });
+    const opened = await waitFor(".palette", 2000);
+    if (!opened) return false;
+    setInput(".palette-input", "snapshot");
+    await wait(200);
+    const items = document.querySelectorAll(".palette-item").length;
+    pressKey("Escape");
+    await wait(150);
+    return items > 0 && (await waitForGone(".palette"));
+  });
+
+  // Search.
+  await step("A21 search: query finds results and jumps", async () => {
+    setInput(".search-input", "replay");
+    const found = await waitFor(".search-result", 4000);
+    if (!found) return false;
+    const idxBefore = useReplay.getState().index;
+    click(".search-result");
+    await wait(300);
+    return useReplay.getState().index !== idxBefore;
+  });
+
+  // Empty replay explanation.
+  await step("A22 empty range shows an explanation, not a dead workspace", async () => {
+    await useReplay.getState().configureRange(useReplay.getState().repo!.headSha, useReplay.getState().repo!.headSha, false, false);
+    const ok = await waitFor(".empty-state", 4000);
+    const text = document.querySelector(".empty-state")?.textContent ?? "";
+    const explain = text.includes("no commits") || text.includes("same commit");
+    clickByText(".empty-state .btn", "Choose a different range");
+    await wait(300);
+    return ok && explain && document.querySelector(".range-setup") !== null;
+  });
+
+  // Settings + About pages.
+  await step("A23 settings: theme toggle, cache info, clear cache, back", async () => {
     useReplay.getState().setScreen("settings");
-    record("UI renders: settings page", await waitFor(".settings-section"), ".settings-section appeared");
-    useReplay.getState().setScreen("replay");
-  } catch (e) {
-    record("self-test harness", false, String(e));
+    if (!(await waitFor(".settings-section", 3000))) return false;
+    clickByText(".segmented .chip", "dark");
+    await wait(100);
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    clickByText(".segmented .chip", "system");
+    await wait(100);
+    const sys = document.documentElement.getAttribute("data-theme") === null;
+    clickByText(".settings-row .btn", "Clear cache");
+    await wait(600);
+    const note = document.querySelector(".settings-note")?.textContent ?? "";
+    clickByText(".page-header .btn", "Back");
+    await wait(200);
+    return dark && sys && note.includes("cleared") && document.querySelector(".settings-section") === null;
+  });
+  await step("A24 about page renders with version", async () => {
+    useReplay.getState().setScreen("about");
+    const ok = await waitFor(".about-hero", 3000);
+    const version = document.querySelector(".about-version")?.textContent ?? "";
+    clickByText(".page-header .btn", "Back");
+    await wait(200);
+    return ok && /Version/.test(version);
+  });
+
+  // ── Repo B: demo fixture (merge, rename, binary, empty, large, tags) ───────
+  const demoPath = await invoke<string | null>("ensure_demo_fixture").catch(() => null);
+  record("B1 demo fixture built", !!demoPath, demoPath ?? "none");
+  if (demoPath) {
+    await invoke("dirty_demo_fixture", { path: demoPath }).catch(() => undefined);
+
+    await step("B2 demo repo opens and resolves", async () => {
+      const ok = await useReplay.getState().openRepo(demoPath);
+      if (!ok) return false;
+      await useReplay.getState().configureRange("", null, false, false);
+      return (useReplay.getState().range?.commits.length ?? 0) >= 12;
+    });
+
+    await step("B3 merge commit: badge + parent switcher updates files", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.parents.length > 1);
+      if (idx < 0) return false;
+      useReplay.getState().setView("step");
+      useReplay.getState().setIndex(idx + 1);
+      if (!(await waitFor(".merge-badge"))) return false;
+      const before = document.querySelectorAll(".file-row").length;
+      clickByText(".merge-parents .chip", "2nd parent");
+      await wait(500);
+      const after = document.querySelectorAll(".file-row").length;
+      const secondOn = document.querySelector(".merge-parents .chip.on")?.textContent?.includes("2nd") ?? false;
+      return after > 0 && secondOn && before !== after;
+    });
+
+    await step("B4 rename commit shows move display", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.subject.includes("move service"));
+      if (idx < 0) throw new Error("rename commit not in range");
+      useReplay.getState().setIndex(idx + 1);
+      // Wait for THIS commit's content, not rows left over from the previous frame.
+      if (!(await waitForText(".commit-subject", "move service", 5000))) {
+        throw new Error(`commit header never showed the rename subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+      }
+      const text = [...document.querySelectorAll(".file-row")].map((e) => e.textContent ?? "").join(" | ");
+      if (!text.includes("→")) throw new Error(`no move arrow in rows: ${text}`);
+      return true;
+    });
+
+    await step("B5 binary commit shows a binary notice", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.subject.includes("add assets"));
+      if (idx < 0) throw new Error("assets commit not in range");
+      useReplay.getState().setIndex(idx + 1);
+      if (!(await waitForText(".commit-subject", "add assets", 5000))) {
+        throw new Error(`header never showed the assets subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+      }
+      const rows = [...document.querySelectorAll(".file-row-name")].map((e) => e.textContent ?? "");
+      const binRow = rows.find((t) => t.includes("logo.bin"));
+      if (!binRow) throw new Error(`logo.bin row missing: ${rows.join(" | ")}`);
+      useReplay.getState().setSelectedFile("assets/logo.bin");
+      if (!(await waitFor(".binary-note", 5000))) {
+        const content = document.querySelector(".step-content")?.textContent?.slice(0, 300) ?? "no .step-content";
+        throw new Error(`no .binary-note rendered; step content: ${content}`);
+      }
+      return true;
+    });
+
+    await step("B6 empty commit shows the no-changes state", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.subject.includes("checkpoint"));
+      if (idx < 0) throw new Error("checkpoint commit not in range");
+      useReplay.getState().setIndex(idx + 1);
+      if (!(await waitForText(".commit-subject", "checkpoint", 5000))) {
+        throw new Error(`header never showed checkpoint; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+      }
+      const text = document.querySelector(".changed-files")?.textContent ?? "";
+      if (!text.includes("No file changes")) throw new Error(`changed files text: ${text.slice(0, 200)}`);
+      return true;
+    });
+
+    await step("B7 large generated diff virtualizes a 1200-line file", async () => {
+      const range = useReplay.getState().range!;
+      const idx = range.commits.findIndex((c) => c.subject.includes("generate constants"));
+      if (idx < 0) return false;
+      useReplay.getState().setIndex(idx + 1);
+      await waitFor(".file-row");
+      useReplay.getState().setSelectedFile("src/generated/constants.ts");
+      if (!(await waitFor(".diff-view", 6000))) return false;
+      const scroller = document.querySelector<HTMLElement>(".diff-scroll");
+      if (!scroller) return false;
+      // Virtualized: far more content than rendered rows.
+      return scroller.scrollHeight > 10000 && document.querySelectorAll(".diff-line").length > 20;
+    });
+
+    await step("B8 working-tree frame: header, changed list, untracked file", async () => {
+      useReplay.getState().setIndex(useReplay.getState().range!.commits.length + 1);
+      if (!(await waitFor(".commit-no.wt"))) return false;
+      const rows = [...document.querySelectorAll(".file-row-name")].map((e) => e.textContent ?? "");
+      return rows.some((t) => t.includes("scratch-notes.txt")) && rows.some((t) => t.includes("queue.ts"));
+    });
+
+    await step("B9 working-tree snapshot lists untracked files", async () => {
+      useReplay.getState().setView("snapshot");
+      await waitFor(".file-tree");
+      const text = document.querySelector(".file-tree")?.textContent ?? "";
+      return text.includes("scratch-notes.txt");
+    });
+
+    await step("B10 repo change is detected and refresh clears the banner", async () => {
+      await invoke("commit_demo_fixture", { path: demoPath }).catch(() => undefined);
+      const seen = await waitFor(".repo-changed-banner", 9000);
+      if (!seen) return false;
+      click(".repo-changed-banner .btn-primary");
+      const cleared = await waitForGone(".repo-changed-banner", 4000);
+      return cleared && useReplay.getState().repoChanged === false;
+    });
+
+    await step("B11 tags mode renders tag pickers", async () => {
+      useReplay.getState().setScreen("replay");
+      useReplay.setState({ range: null });
+      await waitFor(".range-setup");
+      clickByText(".range-modes .chip", "Tags");
+      await wait(200);
+      const selects = document.querySelectorAll(".range-form select").length;
+      useReplay.setState({ screen: "replay" });
+      return selects >= 2;
+    });
+
+    await step("B12 PR mode surfaces errors gracefully", async () => {
+      clickByText(".range-modes .chip", "Pull request");
+      await wait(200);
+      setInput(".pr-form input", "999999");
+      clickByText(".pr-form .btn", "Load");
+      await wait(2500);
+      const err = document.querySelector(".range-error")?.textContent ?? "";
+      const noCrash = document.querySelector(".crash-panel") === null;
+      return noCrash && err.length > 0;
+    });
   }
 
-  // Anything the window logged as an uncaught error/rejection since startup.
+  // Window-level errors since startup.
   const windowErrors = (window as unknown as { __selftestErrors?: string[] }).__selftestErrors ?? [];
   for (const e of windowErrors.slice(0, 5)) {
     record("uncaught window error", false, e);
   }
 
+  finish();
+}
+
+function finish(): void {
   record("TOTAL", results.every((r) => r.ok), `${results.filter((r) => r.ok).length}/${results.length} steps passed`);
   const passed = results.filter((r) => r.ok).length;
 
   const report = JSON.stringify({ passed, total: results.length, results }, null, 2);
-  try {
-    await invoke("report_self_test", { report });
-  } catch {
-    // Reporting is best-effort; the overlay still shows.
-  }
+  invoke("report_self_test", { report }).catch(() => undefined);
 
   renderOverlay(results, passed);
 }

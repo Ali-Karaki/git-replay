@@ -215,6 +215,8 @@ pub struct SearchResult {
     pub sha: String,
     pub subject: String,
     pub commit_ts: i64,
+    /// How the commit matched: "message", "path", or "content" (pickaxe).
+    pub kind: String,
 }
 
 /// The synthetic "Working Tree" frame: HEAD → staged + unstaged changes
