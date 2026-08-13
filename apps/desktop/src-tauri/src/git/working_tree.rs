@@ -5,7 +5,7 @@
 use super::changes::{parse_name_status, parse_numstat, parse_shortstat};
 use super::{is_binary, lossy, run_git, Repo};
 use crate::error::AppError;
-use crate::git::types::{CommitStats, FileChange, FileStatus, WorkingTreeFrame};
+use crate::git::types::{FileChange, FileStatus, WorkingTreeFrame};
 
 /// Changes in the working tree relative to HEAD (staged + unstaged).
 pub fn working_tree_frame(repo: &Repo) -> Result<WorkingTreeFrame, AppError> {

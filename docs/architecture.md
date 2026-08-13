@@ -34,12 +34,14 @@ The engine shells out to the system Git CLI using **plumbing commands with `-z`
 |------------------|---------------------------------------------------------------------|
 | Refs / resolve   | `rev-parse`, `merge-base`                                           |
 | History          | `rev-list --topo-order`, `log -z --format=...`                      |
-| File changes     | `diff-tree -r --root -M -C --name-status -z`, `diff --numstat -z`   |
-| Stats            | `diff --shortstat`                                                  |
-| Patches          | `diff --no-ext-diff --no-color -M`                                  |
+| File changes     | `diff-tree -r --root -M -C --name-status -z`, `diff-tree --numstat -z` |
+| Stats            | `diff-tree --shortstat`                                             |
+| Patches          | `diff-tree -r -p --root -M`                                         |
 | Snapshots        | `ls-tree -l -z <tree-sha>`, `cat-file`                              |
-| Evolution        | `log --raw -z --format=%H <base>..<head> -- <path>`                 |
-| Search           | `log --grep --fixed-strings`, pathspec globs                        |
+| Evolution        | `log --follow --raw/--numstat -z` (rename chains via git)           |
+| Search           | `log --grep --fixed-strings`, pathspec globs, `-S` pickaxe          |
+| Working tree     | `diff HEAD`, `ls-files --stage/--others`, `rev-parse :path`         |
+| Pull requests    | `gh pr view` / `gh api graphql` (force-push events), `git fetch`    |
 
 Key semantic decisions:
 
@@ -52,6 +54,14 @@ Key semantic decisions:
 - **Tree listing is content-addressed**: subdirectories are listed by their tree object
   SHA (`ls-tree <tree-sha>`), which avoids pathspec escaping entirely and makes tree
   listings cacheable by SHA.
+- **Working tree frames** (spec 35) are synthetic: `diff HEAD` for changes, index
+  listings (`ls-files --stage` + untracked) for snapshots — no tree objects are
+  fabricated, and the frame exists only while the replay head is the repo's HEAD.
+- **PR replays** fetch `refs/pull/N/head` (or use `gh`) and feed the same resolve
+  path as local refs; force-push versions come from GitHub's
+  `HEAD_REF_FORCE_PUSHED` timeline events via `gh api graphql`.
+- **Chapters** are a pure presentation heuristic over raw commits (prefix changes,
+  time gaps, merges) — the raw timeline is always one toggle away.
 
 ### Rust → React
 
@@ -97,13 +107,20 @@ around the playhead so stepping feels instantaneous.
 messages (Repository not found, Ref not found, Not a work tree, …) with the raw git
 stderr kept in a `detail` field for "Show details" surfaces.
 
-## Known trade-offs (v1)
+## Known trade-offs
 
 - System Git CLI is required (see ADR-0002). No libgit2 dependency.
 - Commit message fields are split on ASCII control separators (`%x1f`); a commit
-  message containing `0x1f` would be truncated on that field. Accepted for v1.
+  message containing `0x1f` would be truncated on that field.
 - Paths are assumed UTF-8 (`String::from_utf8_lossy`); non-UTF-8 paths display lossy.
-- Adaptive playback timing and change-map visualization are not yet implemented;
-  manual stepping always works.
+- Adaptive playback uses commit stats already in the prefetch cache, falling back to
+  the fixed rate — never worse than fixed, never a surprise.
 - Timeline aggregation for very large histories is by day-bucket; the canvas renderer
-  never creates DOM nodes per commit.
+  never creates DOM nodes per commit. The change map caps at the first 500 commits /
+  150 files with the cap shown in the header.
+- PR force-push versions depend on what GitHub still lets you fetch; versions that
+  were garbage-collected report a clear "no longer fetchable" error.
+- Repository-change detection polls HEAD every 4s while visible (cheap), rather than
+  watching the filesystem.
+- Chapter grouping is heuristic (message prefixes, >3-day gaps, merge boundaries);
+  manual/AI chapter modes remain open extensions on the same presentation layer.

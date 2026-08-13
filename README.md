@@ -97,9 +97,24 @@ Suggested replays on the demo repo:
 | `Shift+←` / `Shift+→` | jump 5 commits |
 | `Space` | play / pause |
 | `Home` / `End` | base / HEAD |
-| `1` / `2` / `3` | Step / Snapshot / File Evolution view |
+| `1` / `2` / `3` / `4` | Step / Snapshot / File Evolution / Change Map view |
 | `/` | search |
 | `Ctrl+K` | command palette |
+
+### Capabilities
+
+- **Replay sources**: branch (merge-base aware), commit range, tags/releases,
+  GitHub pull request (with force-push version history via `gh`), entire repository
+- **Working Tree frame**: when the replay head is your checked-out commit, a synthetic
+  final frame shows uncommitted staged + unstaged changes, including untracked files
+- **Change map**: file × commit activity grid (created / modified / deleted / moved)
+- **Adaptive playback**: small commits flash by, substantial ones pause — with a
+  fixed-rate mode and always-working manual stepping
+- **Chapters**: heuristic grouping on the timeline as an alternate presentation;
+  raw commits always visible
+- **Search**: commit messages, file paths, and changed content (pickaxe)
+- **Repository watch**: new commits or branch switches surface a refresh banner
+- **Session restore**: resume the last replay from the welcome screen
 
 ## Product invariants
 
