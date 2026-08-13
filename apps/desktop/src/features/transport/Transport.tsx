@@ -67,6 +67,11 @@ export function Transport() {
           <strong>Commit {index}</strong>
         )}{" "}
         <span className="dim">/ {total}</span>
+        {playing && index > 0 && index <= range.commits.length && (
+          <span className="playing-subject dim" title={range.commits[index - 1].subject}>
+            {range.commits[index - 1].subject}
+          </span>
+        )}
       </span>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReplay } from "../../stores/replay";
 import { formatDateTime, shortSha } from "../../lib/format";
+import { copyText } from "../../lib/clipboard";
 import { CheckIcon, ChevronRight } from "../../components/Icons";
 
 interface Command {
@@ -63,7 +64,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       cmds.push({ id: "hide-ws", label: `${s.hideWhitespaceOnly ? "Show" : "Hide"} whitespace-only changes`, run: () => set({ hideWhitespaceOnly: !s.hideWhitespaceOnly }) });
       const sel = s.selectedFile;
       if (sel) {
-        cmds.push({ id: "copy-path", label: `Copy file path: ${sel}`, run: () => void navigator.clipboard.writeText(sel) });
+        cmds.push({ id: "copy-path", label: `Copy file path: ${sel}`, run: () => void copyText(sel) });
       }
     }
     cmds.push({ id: "open", label: "Open repository…", run: () => { onClose(); set({ repo: null, range: null }); } });

@@ -49,6 +49,9 @@ pub fn run() {
             commands::clear_cache,
             commands::self_test_repo_path,
             commands::report_self_test,
+            commands::ensure_demo_fixture,
+            commands::dirty_demo_fixture,
+            commands::commit_demo_fixture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

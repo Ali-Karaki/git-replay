@@ -115,6 +115,7 @@ export interface SearchResult {
   sha: string;
   subject: string;
   commitTs: number;
+  kind: "message" | "path" | "content";
 }
 
 export interface AppError {

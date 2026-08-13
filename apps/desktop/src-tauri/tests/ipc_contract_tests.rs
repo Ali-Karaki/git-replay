@@ -152,8 +152,8 @@ fn repo_pr_and_meta_types_use_camel_case() {
     let cache = CacheInfo { path: "p".into(), size_bytes: 42 };
     has(&keys(&cache), &["path", "sizeBytes"]);
 
-    let result = SearchResult { sha: "s".into(), subject: "s".into(), commit_ts: 1 };
-    has(&keys(&result), &["sha", "subject", "commitTs"]);
+    let result = SearchResult { sha: "s".into(), subject: "s".into(), commit_ts: 1, kind: "message".into() };
+    has(&keys(&result), &["sha", "subject", "commitTs", "kind"]);
 
     let diff = FileDiff { patch: None, binary: true };
     has(&keys(&diff), &["patch", "binary"]);

@@ -120,3 +120,8 @@ code, pre, .mono { font-family: var(--mono); }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* -- focus rings ---------------------------------------------------------------------------- */
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+button:focus:not(:focus-visible) { outline: none; }

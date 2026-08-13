@@ -166,6 +166,72 @@ pub async fn self_test_repo_path() -> Cmd<Option<String>> {
     }
 }
 
+/// Build the demo fixture (merge, rename, binary, empty commit, large diff,
+/// tags) and return its path. Debug builds only.
+#[tauri::command]
+pub async fn ensure_demo_fixture() -> Cmd<Option<String>> {
+    #[cfg(debug_assertions)]
+    {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let script = root.join("scripts").join("make-demo-fixture.sh");
+        let out = std::process::Command::new("sh").arg(&script).output();
+        return Ok(out.ok().filter(|o| o.status.success()).and_then(|_| {
+            std::fs::canonicalize(root.join("fixtures").join("demo-repo")).ok().map(|p| p.to_string_lossy().into_owned())
+        }));
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = ();
+        Ok(None)
+    }
+}
+
+/// Make the demo fixture's working tree dirty (modify + untracked file), so
+/// the Working Tree frame has content. Debug builds only.
+#[tauri::command]
+pub async fn dirty_demo_fixture(path: String) -> Cmd<()> {
+    #[cfg(debug_assertions)]
+    {
+        let p = std::path::PathBuf::from(path);
+        let _ = std::fs::write(p.join("src/queue.ts"), "// modified\n");
+        let _ = std::fs::write(p.join("scratch-notes.txt"), "untracked\n");
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
+/// Commit the demo fixture's current state, so the repository-change banner
+/// and refresh flow can be exercised end-to-end. Debug builds only.
+#[tauri::command]
+pub async fn commit_demo_fixture(path: String) -> Cmd<()> {
+    #[cfg(debug_assertions)]
+    {
+        let p = std::path::PathBuf::from(path);
+        let envs = [
+            ("GIT_AUTHOR_NAME", "Self Test"),
+            ("GIT_AUTHOR_EMAIL", "selftest@git-replay.local"),
+            ("GIT_COMMITTER_NAME", "Self Test"),
+            ("GIT_COMMITTER_EMAIL", "selftest@git-replay.local"),
+        ];
+        let mut git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C").arg(&p).envs(envs.clone()).args(args)
+                .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
+                .status().map(|s| s.success()).unwrap_or(false)
+        };
+        git(&["add", "-A"]);
+        git(&["commit", "-q", "-m", "self-test commit"]);
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
 /// Persist the in-app self-test report: echoes it to stdout (captured by the
 /// dev log) and writes a copy next to the cache database.
 #[tauri::command]

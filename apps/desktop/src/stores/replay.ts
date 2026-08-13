@@ -51,6 +51,7 @@ interface ReplayState {
   hideWhitespaceOnly: boolean;
   mergeParent: number;
   timelineZoom: number | "fit";
+  timelineScroll: number;
   groupChapters: boolean;
   expandedDirs: string[];
   leftCollapsed: boolean;
@@ -81,6 +82,7 @@ interface ReplayState {
   setError(message: string | null, detail?: string | null): void;
   setMergeParent(p: number): void;
   setTimelineZoom(z: number | "fit"): void;
+  setTimelineScroll(s: number): void;
   setTheme(t: Theme): void;
   refreshRepo(): Promise<void>;
 }
@@ -126,6 +128,7 @@ export const useReplay = create<ReplayState>()(
       hideWhitespaceOnly: false,
       mergeParent: 0,
       timelineZoom: "fit",
+      timelineScroll: 0,
       groupChapters: false,
       expandedDirs: [],
       leftCollapsed: false,
@@ -204,6 +207,7 @@ export const useReplay = create<ReplayState>()(
           selectedFile: null,
           mergeParent: 0,
           expandedDirs: [],
+          timelineScroll: 0,
           busy: false,
           repoChanged: false,
           session: repo
@@ -321,6 +325,10 @@ export const useReplay = create<ReplayState>()(
 
       setTimelineZoom(z) {
         set({ timelineZoom: z });
+      },
+
+      setTimelineScroll(s) {
+        set({ timelineScroll: s });
       },
 
       setTheme(t) {

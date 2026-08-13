@@ -34,6 +34,9 @@ export function Welcome() {
         <div className="welcome-mark"><BranchIcon size={26} /></div>
         <h1>Git Replay</h1>
         <p className="welcome-tagline">Replay how software evolved — commit by commit.</p>
+        <p className="welcome-hint dim">
+          Open any Git repository, pick a range, and press Play. Nothing ever leaves your machine.
+        </p>
         <button className="btn btn-primary btn-large" onClick={pickAndOpen} disabled={busy}>
           <FolderIcon size={15} /> {busy ? "Opening…" : "Open repository"}
         </button>

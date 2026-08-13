@@ -54,7 +54,9 @@ export function getCachedCommitDetail(repoId: number, sha: string, parentIndex: 
 
 /** Fire-and-forget prefetch for adjacent frames. */
 export function prefetchCommit(repoId: number, sha: string, parentIndex: number | null): void {
-  void getCommitDetail(repoId, sha, parentIndex);
+  // Prefetch failures are by definition not user-facing — never leave an
+  // unhandled rejection behind during repo transitions.
+  getCommitDetail(repoId, sha, parentIndex).catch(() => undefined);
 }
 
 // -- file diffs ----------------------------------------------------------------

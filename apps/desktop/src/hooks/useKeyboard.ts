@@ -2,7 +2,8 @@
 // (except Escape and Ctrl+K, which are handled globally).
 
 import { useEffect } from "react";
-import { useReplay } from "../stores/replay";
+import { getCachedCommitDetail } from "../lib/dataCaches";
+import { frameSha, useReplay } from "../stores/replay";
 
 const JUMP = 5;
 
@@ -73,6 +74,23 @@ export function useKeyboard(opts: {
           e.preventDefault();
           onFocusSearch();
           break;
+        case "]":
+        case "[": {
+          e.preventDefault();
+          const st = useReplay.getState();
+          if (!st.repo || !st.range || st.index === 0) break;
+          const sha = frameSha(st.range, st.index, st.hasWorkingTree);
+          const files =
+            sha === "WORKTREE"
+              ? st.wtFrame?.files
+              : getCachedCommitDetail(st.repo.id, sha, st.mergeParent)?.files;
+          if (!files || files.length === 0) break;
+          const paths = files.map((f) => f.newPath);
+          const cur = st.selectedFile ? paths.indexOf(st.selectedFile) : -1;
+          const next = e.key === "]" ? (cur + 1) % paths.length : cur <= 0 ? paths.length - 1 : cur - 1;
+          st.setSelectedFile(paths[next]);
+          break;
+        }
         default:
           break;
       }
