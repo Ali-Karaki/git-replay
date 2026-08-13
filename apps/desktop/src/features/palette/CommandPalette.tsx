@@ -17,6 +17,19 @@ interface Command {
  *  commit jumps appear while typing (see `commitSearch`). */
 const JUMP_CAP = 300;
 
+/** Matches the debounce used by the inline search bar. */
+const COMMIT_SEARCH_DEBOUNCE_MS = 250;
+
+/** A "Go to N: subject" jump entry for one commit. */
+function commitCommand(commit: { sha: string; subject: string; commitTs: number }, index: number, setIndex: (i: number) => void): Command {
+  return {
+    id: `commit-${commit.sha}`,
+    label: `Go to ${index + 1}: ${commit.subject}`,
+    hint: `${shortSha(commit.sha)} · ${formatDateTime(commit.commitTs)}`,
+    run: () => setIndex(index + 1),
+  };
+}
+
 export function CommandPalette({
   open, onClose, onShowCheatsheet,
 }: { open: boolean; onClose: () => void; onShowCheatsheet?: () => void }) {
@@ -36,31 +49,25 @@ export function CommandPalette({
   const set = useReplay.setState;
 
   const commands = useMemo<Command[]>(() => {
+    const range = s.range;
     const cmds: Command[] = [];
-    if (s.range) {
+    if (range) {
       cmds.push({ id: "next", label: "Next commit", hint: "→", run: () => s.step(1) });
       cmds.push({ id: "prev", label: "Previous commit", hint: "←", run: () => s.step(-1) });
       cmds.push({ id: "play", label: s.playing ? "Pause" : "Play", hint: "Space", run: () => s.setPlaying(!s.playing) });
       cmds.push({ id: "first", label: "Go to base", hint: "Home", run: () => s.setIndex(0) });
-      cmds.push({ id: "last", label: "Go to HEAD", hint: "End", run: () => s.setIndex(s.range!.commits.length) });
+      cmds.push({ id: "last", label: "Go to HEAD", hint: "End", run: () => s.setIndex(range.commits.length) });
       // Jump-to-commit entries — only for small enough ranges; larger ones
       // get on-demand commit search while typing (see `commitSearch`).
-      if (s.range.commits.length <= JUMP_CAP) {
-        s.range.commits.forEach((c, i) => {
-          cmds.push({
-            id: `commit-${c.sha}`,
-            label: `Go to ${i + 1}: ${c.subject}`,
-            hint: `${shortSha(c.sha)} · ${formatDateTime(c.commitTs)}`,
-            run: () => s.setIndex(i + 1),
-          });
-        });
+      if (range.commits.length <= JUMP_CAP) {
+        range.commits.forEach((c, i) => cmds.push(commitCommand(c, i, s.setIndex)));
       }
       cmds.push({ id: "view-step", label: `What changed view${s.view === "step" ? " (current)" : ""}`, hint: "1", run: () => s.setView("step") });
       cmds.push({ id: "view-snapshot", label: `Browse code view${s.view === "snapshot" ? " (current)" : ""}`, hint: "2", run: () => s.setView("snapshot") });
       cmds.push({ id: "view-evolution", label: `File story view${s.view === "evolution" ? " (current)" : ""}`, hint: "3", run: () => s.setView("evolution") });
       cmds.push({ id: "view-map", label: `Overview view${s.view === "map" ? " (current)" : ""}`, hint: "4", run: () => s.setView("map") });
       if (s.hasWorkingTree) {
-        cmds.push({ id: "go-wt", label: "Go to Working Tree frame", run: () => s.setIndex(s.range!.commits.length + 1) });
+        cmds.push({ id: "go-wt", label: "Go to Working Tree frame", run: () => s.setIndex(range.commits.length + 1) });
       }
       cmds.push({ id: "chapters", label: `${s.groupChapters ? "Hide" : "Show"} timeline chapters`, run: () => set({ groupChapters: !s.groupChapters }) });
       cmds.push({ id: "adaptive", label: `${s.adaptivePlayback ? "Disable" : "Enable"} adaptive playback`, run: () => set({ adaptivePlayback: !s.adaptivePlayback }) });
@@ -78,7 +85,7 @@ export function CommandPalette({
     }
     cmds.push({ id: "collapse-sidebar", label: `${s.sidebarCollapsed ? "Expand" : "Collapse"} sidebar`, run: () => set({ sidebarCollapsed: !s.sidebarCollapsed }) });
     cmds.push({ id: "open", label: "Open repository…", run: () => { onClose(); set({ repo: null, range: null }); } });
-    cmds.push({ id: "change-range", label: "Change replay range…", hint: "when a repo is open", run: () => { onClose(); set({ range: null }); } });
+    cmds.push({ id: "change-range", label: "Change replay range…", run: () => { onClose(); set({ range: null }); } });
     cmds.push({ id: "settings", label: "Settings", run: () => { onClose(); s.setScreen("settings"); } });
     cmds.push({ id: "about", label: "About Git Replay", run: () => { onClose(); s.setScreen("about"); } });
     cmds.push({ id: "help", label: "Keyboard shortcuts", hint: "?", run: () => { onClose(); onShowCheatsheet?.(); } });
@@ -87,21 +94,29 @@ export function CommandPalette({
   }, [s, open]);
 
   // For ranges too large for per-commit entries, surface matching commits as
-  // the user types (subject substring or SHA prefix).
+  // the user types. Lowercased subjects are precomputed once per range and
+  // the query is debounced, so keystrokes on huge histories never trigger a
+  // full-array scan with per-item allocations.
+  const commitIndex = useMemo(() => {
+    const range = s.range;
+    if (!range || range.commits.length <= JUMP_CAP) return null;
+    return range.commits.map((c, i) => ({ c, i, lower: c.subject.toLowerCase() }));
+  }, [s.range]);
+
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), COMMIT_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const commitSearch = useMemo<Command[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!s.range || s.range.commits.length <= JUMP_CAP || q.length < 3) return [];
-    return s.range.commits
-      .map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.subject.toLowerCase().includes(q) || c.sha.startsWith(q))
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!commitIndex || q.length < 3) return [];
+    return commitIndex
+      .filter(({ c, lower }) => lower.includes(q) || c.sha.startsWith(q))
       .slice(0, 20)
-      .map(({ c, i }) => ({
-        id: `commit-${c.sha}`,
-        label: `Go to ${i + 1}: ${c.subject}`,
-        hint: `${shortSha(c.sha)} · ${formatDateTime(c.commitTs)}`,
-        run: () => s.setIndex(i + 1),
-      }));
-  }, [query, s.range]);
+      .map(({ c, i }) => commitCommand(c, i, s.setIndex));
+  }, [commitIndex, debouncedQuery, s.setIndex]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

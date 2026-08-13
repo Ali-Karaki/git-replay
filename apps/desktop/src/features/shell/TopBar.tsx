@@ -9,6 +9,9 @@ import { SearchBar } from "../search/SearchBar";
 import { BranchIcon, RefreshIcon } from "../../components/Icons";
 import type { SnapshotStats } from "../../lib/types";
 
+/** The palette shortcut is Ctrl+K everywhere except macOS (⌘K). */
+const PALETTE_KEY_LABEL = /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
+
 function RepoStats({ sha, repoId }: { sha: string; repoId: number }) {
   const [stats, setStats] = useState<SnapshotStats | null>(null);
   useEffect(() => {
@@ -83,7 +86,7 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
       {range && <SearchBar />}
 
       <button className="btn-icon palette-trigger" onClick={onOpenPalette} title="Command palette (Ctrl+K)">
-        <span className="palette-trigger-label">⌘K</span>
+        <span className="palette-trigger-label">{PALETTE_KEY_LABEL}</span>
       </button>
 
       {repoChanged && (

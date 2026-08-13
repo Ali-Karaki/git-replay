@@ -6,12 +6,12 @@ import { useReplay, type ViewMode } from "../../stores/replay";
 import { useChat } from "../../stores/chat";
 import {
   ChatIcon, ChevronLeftIcon, ChevronRight, DiffIcon, EvolutionIcon,
-  FolderIcon, GearIcon, HelpIcon, MapIcon,
+  FolderIcon, GearIcon, HelpIcon, MapIcon, type IconProps,
 } from "../../components/Icons";
 
 interface NavItem {
   id: ViewMode;
-  icon: (p: { size?: number }) => React.ReactNode;
+  icon: (p: IconProps) => React.ReactNode;
   label: string;
   key: string;
   sub: string;
@@ -26,6 +26,7 @@ const NAV: NavItem[] = [
 
 export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void }) {
   const view = useReplay((s) => s.view);
+  const hasRange = useReplay((s) => s.range !== null);
   const collapsed = useReplay((s) => s.sidebarCollapsed);
   const setView = useReplay((s) => s.setView);
   const set = useReplay.setState;
@@ -45,12 +46,16 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
         {NAV.map((v) => (
           <button
             key={v.id}
-            className={`sidebar-item ${view === v.id ? "active" : ""}`}
+            className={`sidebar-item ${view === v.id && hasRange ? "active" : ""}`}
             onClick={() => setView(v.id)}
-            aria-current={view === v.id ? "page" : undefined}
-            title={collapsed ? `${v.label} (${v.key})` : undefined}
+            // No replay is open until a range resolves — the views have
+            // nothing to show yet, so keep the nav inert instead of
+            // silently doing nothing.
+            disabled={!hasRange}
+            aria-current={view === v.id && hasRange ? "page" : undefined}
+            title={collapsed ? `${v.label} (${v.key})` : !hasRange ? "Pick a replay first" : undefined}
           >
-            <span className="sidebar-icon">{<v.icon size={15} />}</span>
+            <span className="sidebar-icon"><v.icon size={15} /></span>
             <span className="sidebar-label">{v.label}</span>
             <span className="sidebar-kbd">{v.key}</span>
             <span className="sidebar-sub">{v.sub}</span>
@@ -62,12 +67,17 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
           className={`sidebar-item chat-trigger ${chatOpen ? "active" : ""}`}
           onClick={() => useChat.getState().setOpen(!chatOpen)}
           title={collapsed ? "Ask AI" : undefined}
-          aria-label="AI chat"
+          aria-label={collapsed ? "Ask AI" : undefined}
         >
           <span className="sidebar-icon"><ChatIcon size={15} /></span>
           <span className="sidebar-label">Ask AI</span>
         </button>
-        <button className="sidebar-item" onClick={onToggleCheatsheet} title={collapsed ? "Help (?)" : undefined}>
+        <button
+          className="sidebar-item"
+          onClick={onToggleCheatsheet}
+          title={collapsed ? "Help (?)" : undefined}
+          aria-label={collapsed ? "Help" : undefined}
+        >
           <span className="sidebar-icon"><HelpIcon size={15} /></span>
           <span className="sidebar-label">Help</span>
         </button>
@@ -75,7 +85,7 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
           className="sidebar-item"
           onClick={() => set({ screen: "settings" })}
           title={collapsed ? "Settings" : undefined}
-          aria-label="Settings"
+          aria-label={collapsed ? "Settings" : undefined}
         >
           <span className="sidebar-icon"><GearIcon size={15} /></span>
           <span className="sidebar-label">Settings</span>

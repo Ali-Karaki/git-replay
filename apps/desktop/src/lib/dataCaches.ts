@@ -36,8 +36,12 @@ function cachedValue<T>(map: Map<string, Entry<T>>, key: string): T | null {
 
 // -- commit details ----------------------------------------------------------
 
+// The engine treats a null parent index as the first parent (0), so the cache
+// keys must too — otherwise the same detail is fetched twice under "def" and
+// "0" keys, and callers that pass 0 (adaptive playback) miss entries written
+// by callers that pass null (the views).
 const detailKey = (repoId: number, sha: string, parentIndex: number | null) =>
-  `${repoId}|${sha}|${parentIndex ?? "def"}`;
+  `${repoId}|${sha}|${parentIndex ?? 0}`;
 
 const details = new Map<string, Entry<CommitDetail>>();
 
@@ -62,7 +66,7 @@ export function prefetchCommit(repoId: number, sha: string, parentIndex: number 
 // -- file diffs ----------------------------------------------------------------
 
 const diffKey = (repoId: number, sha: string, parentIndex: number | null, path: string) =>
-  `${repoId}|${sha}|${parentIndex ?? "def"}|${path}`;
+  `${repoId}|${sha}|${parentIndex ?? 0}|${path}`;
 
 const diffs = new Map<string, Entry<FileDiff>>();
 

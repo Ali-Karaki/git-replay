@@ -1,6 +1,6 @@
 // Minimal inline icon set (stroke-based, 16px grid). No icon library dep.
 
-interface IconProps {
+export interface IconProps {
   size?: number;
 }
 
