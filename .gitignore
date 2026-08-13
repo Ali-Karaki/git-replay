@@ -1,0 +1,24 @@
+# Node
+node_modules/
+dist/
+*.local
+.vite/
+
+# Rust
+target/
+Cargo.lock.orig
+
+# Tauri
+src-tauri/gen/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Generated demo fixtures (created by scripts/make-demo-fixture.sh)
+fixtures/demo-repo/
+
+# Logs
+*.log
