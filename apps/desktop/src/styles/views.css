@@ -444,3 +444,8 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 .chat-input:focus { border-color: var(--accent); }
 .chat-input-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+
+/* -- chat settings save feedback ------------------------------------------------------ */
+
+.chat-settings-actions { display: flex; gap: 8px; }
+.settings-note { color: var(--add); font-size: 12px; }

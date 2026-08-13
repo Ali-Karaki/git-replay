@@ -55,6 +55,7 @@ pub fn run() {
             commands::commit_demo_fixture,
             commands::get_chat_settings,
             commands::set_chat_settings,
+            commands::clear_chat_settings,
             commands::chat_send,
         ])
         .run(tauri::generate_context!())

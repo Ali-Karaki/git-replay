@@ -43,12 +43,14 @@ async function waitForGone(selector: string, timeoutMs = 6000): Promise<boolean>
   return false;
 }
 
-/** Poll until the element's text contains the fragment (fresh content, not
- *  whatever was already in the DOM). */
+/** Poll until the element's text contains one of the fragments ("a|b" = any
+ *  of them; fresh content, not whatever was already in the DOM). */
 async function waitForText(selector: string, text: string, timeoutMs = 6000): Promise<boolean> {
+  const needles = text.split("|");
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if ((document.querySelector(selector)?.textContent ?? "").includes(text)) return true;
+    const content = document.querySelector(selector)?.textContent ?? "";
+    if (needles.some((n) => content.includes(n))) return true;
     await wait(150);
   }
   return false;
@@ -81,6 +83,15 @@ function setInput(selector: string, value: string): boolean {
 
 function pressKey(key: string, opts: KeyboardEventInit = {}) {
   window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...opts }));
+}
+
+function setSelect(selector: string, value: string): boolean {
+  const el = document.querySelector<HTMLSelectElement>(selector);
+  if (!el) return false;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+  setter.call(el, value);
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
 }
 
 async function step(name: string, fn: () => Promise<boolean | void>): Promise<void> {
@@ -510,12 +521,80 @@ export async function runSelfTest(): Promise<void> {
       return noCrash && document.querySelector(".chat-panel") === null;
     });
 
+    await step("B13b chat settings save/remove pipeline (fake key, no real key configured)", async () => {
+      const settings = await api.getChatSettings();
+      if (settings.hasKey) {
+        record("B13b note", true, "skipped — a real key is configured");
+        return true;
+      }
+      try {
+        useChat.setState({ open: false });
+        await wait(200);
+        click(".chat-trigger");
+        if (!(await waitFor(".chat-panel", 3000))) throw new Error("chat panel did not open");
+        clickByText(".chat-header-actions .btn-icon", "⚙");
+        if (!(await waitFor(".chat-settings", 2000))) throw new Error("settings did not open");
+        // Pick DeepSeek; the model select must follow the provider.
+        setSelect(".chat-settings select", "deepseek");
+        await wait(200);
+        const modelEl = document.querySelectorAll(".chat-settings select")[1] as HTMLSelectElement | null;
+        const modelFollows = (modelEl?.value ?? "") === "deepseek-chat";
+        // Save a fake key and verify persistence (the settings stay open so
+        // the feedback note is visible).
+        setInput('.chat-settings input[type="password"]', "sk-test-fake-key-123");
+        await wait(100);
+        clickByText(".chat-settings-actions .btn", "Save");
+        await wait(800);
+        const hasKeyNow = useChat.getState().hasKey;
+        const savedNote = document.querySelector(".settings-note")?.textContent ?? "";
+        if (!hasKeyNow) throw new Error("save did not persist the key");
+        // Sending with the fake key must produce a friendly provider error,
+        // not a crash (401 from the provider, or a network error if offline).
+        setInput(".chat-input", "hello");
+        await wait(100);
+        clickByText(".chat-input-actions .btn", "Send");
+        const gotError = await waitForText(
+          ".chat-messages .chat-msg.assistant",
+          "rejected|Could not reach|error",
+          40000,
+        );
+        const noCrash = document.querySelector(".crash-panel") === null;
+        // Remove the key; Send must be gated again.
+        clickByText(".chat-header-actions .btn-icon", "⚙");
+        await wait(300);
+        clickByText(".chat-settings-actions .btn", "Remove key");
+        await wait(600);
+        const hasKeyAfter = useChat.getState().hasKey;
+        const sendDisabled =
+          (document.querySelector(".chat-input-actions .btn-primary") as HTMLButtonElement | null)?.disabled ?? false;
+        const failures = [
+          !gotError && `gotError=false (messages: ${(document.querySelector(".chat-messages")?.textContent ?? "").slice(-200)})`,
+          !noCrash && "crash panel present",
+          hasKeyAfter && "key still present after remove",
+          !sendDisabled && "Send not disabled after remove",
+          !modelFollows && `model did not follow provider (got ${modelEl?.value})`,
+          !savedNote.includes("Saved") && `no saved note (note="${savedNote}")`,
+        ].filter(Boolean);
+        if (failures.length > 0) throw new Error(failures.join("; "));
+        return true;
+      } finally {
+        // Never leave the fake key behind — it would poison B14.
+        if (useChat.getState().hasKey) {
+          await api.clearChatSettings().catch(() => undefined);
+        }
+        useChat.setState({ open: false });
+        await useChat.getState().loadSettings();
+      }
+    });
+
     await step("B14 live chat round-trip (real provider call when a key is configured)", async () => {
       const settings = await api.getChatSettings();
       if (!settings.hasKey) {
         record("B14 note", true, "skipped — no API key configured");
         return true;
       }
+      useChat.setState({ open: false });
+      await wait(200);
       click(".chat-trigger");
       if (!(await waitFor(".chat-panel", 3000))) throw new Error("chat panel did not open");
       setInput(".chat-input", "Reply with exactly: OK");

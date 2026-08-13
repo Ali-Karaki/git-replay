@@ -35,8 +35,14 @@ export function ChatPanel() {
   const [modelInput, setModelInput] = useState(model);
   const [providerInput, setProviderInput] = useState(provider);
   const [baseUrlInput, setBaseUrlInput] = useState(baseUrl);
+  const [settingsNote, setSettingsNote] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const providerDef = CHAT_PROVIDERS.find((p) => p.id === providerInput);
+  const fixedModels = providerInput === "anthropic" || providerInput === "deepseek"
+    ? MODEL_SUGGESTIONS[providerInput]
+    : null;
 
   // Stream events from the engine.
   useEffect(() => {
@@ -80,9 +86,20 @@ export function ChatPanel() {
 
   const send = async () => {
     const q = input.trim();
-    if (!q || sending) return;
+    if (!q || sending || !hasKey) return;
     setInput("");
     await useChat.getState().send(q);
+  };
+
+  const saveSettings = async () => {
+    setSettingsNote(null);
+    try {
+      await useChat.getState().saveSettings(providerInput, modelInput, baseUrlInput || null, keyInput || null);
+      setKeyInput("");
+      setSettingsNote("Saved ✓");
+    } catch (e) {
+      setSettingsNote(`Could not save: ${(e as { message?: string }).message ?? String(e)}`);
+    }
   };
 
   if (!open) return null;
@@ -122,12 +139,14 @@ export function ChatPanel() {
               onChange={(e) => {
                 const id = e.target.value;
                 setProviderInput(id);
+                // The model must always follow the provider: reset to the
+                // provider's default whenever the provider changes.
                 const p = CHAT_PROVIDERS.find((p) => p.id === id);
                 if (p) {
-                  if (id !== "anthropic" && modelInput === "claude-opus-5") setModelInput(p.defaultModel);
-                  if (id === "anthropic" && !modelInput) setModelInput("claude-opus-5");
+                  setModelInput(p.defaultModel);
                   setBaseUrlInput("");
                 }
+                setSettingsNote(null);
               }}
             >
               {CHAT_PROVIDERS.map((p) => (
@@ -137,18 +156,28 @@ export function ChatPanel() {
           </label>
           <label>
             Model
-            <input
-              list="chat-models"
-              value={modelInput}
-              onChange={(e) => setModelInput(e.target.value)}
-              placeholder={CHAT_PROVIDERS.find((p) => p.id === providerInput)?.defaultModel || "model id"}
-              autoComplete="off"
-            />
-            <datalist id="chat-models">
-              {(MODEL_SUGGESTIONS[providerInput] ?? []).map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
+            {fixedModels ? (
+              <select className="select" value={modelInput} onChange={(e) => setModelInput(e.target.value)}>
+                {fixedModels.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                list="chat-models"
+                value={modelInput}
+                onChange={(e) => setModelInput(e.target.value)}
+                placeholder={providerDef?.defaultModel || "model id"}
+                autoComplete="off"
+              />
+            )}
+            {!fixedModels && (
+              <datalist id="chat-models">
+                {(MODEL_SUGGESTIONS[providerInput] ?? []).map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            )}
           </label>
           {(providerInput === "custom_openai" || providerInput === "custom_anthropic") && (
             <label>
@@ -175,12 +204,22 @@ export function ChatPanel() {
               autoComplete="off"
             />
           </label>
-          <button
-            className="btn btn-primary"
-            onClick={() => void useChat.getState().saveSettings(providerInput, modelInput, baseUrlInput || null, keyInput || null)}
-          >
-            Save
-          </button>
+          <div className="chat-settings-actions">
+            <button className="btn btn-primary" onClick={() => void saveSettings()}>
+              Save
+            </button>
+            {hasKey && (
+              <button
+                className="btn"
+                onClick={() => {
+                  void useChat.getState().clearKey().then(() => setSettingsNote("Key removed"));
+                }}
+              >
+                Remove key
+              </button>
+            )}
+          </div>
+          {settingsNote && <div className={settingsNote.startsWith("Could") ? "chat-error" : "settings-note"}>{settingsNote}</div>}
         </div>
       )}
 
@@ -224,13 +263,13 @@ export function ChatPanel() {
           ref={inputRef}
           className="chat-input"
           rows={2}
-          placeholder="Ask about this commit, diff, or file… (Enter to send, Shift+Enter for a new line)"
+          placeholder={hasKey ? "Ask about this commit, diff, or file… (Enter to send, Shift+Enter for a new line)" : "Add your API key in the settings (gear icon) before asking"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              void send();
+              if (hasKey) void send();
             }
           }}
         />
@@ -238,8 +277,8 @@ export function ChatPanel() {
           <button className="btn" onClick={() => void useChat.getState().clearMessages()} disabled={messages.length === 0}>
             Clear
           </button>
-          <button className="btn btn-primary" onClick={() => void send()} disabled={sending || !input.trim()}>
-            {sending ? "Thinking…" : "Send"}
+          <button className="btn btn-primary" onClick={() => void send()} disabled={sending || !input.trim() || !hasKey}>
+            {!hasKey ? "Key needed" : sending ? "Thinking…" : "Send"}
           </button>
         </div>
       </div>

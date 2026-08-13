@@ -23,6 +23,7 @@ interface ChatState {
   setSettingsOpen(v: boolean): void;
   loadSettings(): Promise<void>;
   saveSettings(provider: string, model: string, baseUrl: string | null, apiKey: string | null): Promise<void>;
+  clearKey(): Promise<void>;
   send(question: string): Promise<void>;
   appendChunk(id: string, text: string): void;
   finishStream(id: string, error: string | null): void;
@@ -67,7 +68,13 @@ export const useChat = create<ChatState>()(
 
       async saveSettings(provider, model, baseUrl, apiKey) {
         const s = await api.setChatSettings(provider, model, baseUrl, apiKey);
-        set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey, settingsOpen: false });
+        // Keep the settings open so the "Saved ✓" feedback is visible.
+        set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey });
+      },
+
+      async clearKey() {
+        const s = await api.clearChatSettings();
+        set({ hasKey: s.hasKey });
       },
 
       async send(question) {
