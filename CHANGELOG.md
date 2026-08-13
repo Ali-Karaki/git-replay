@@ -26,5 +26,5 @@ versions with [SemVer](https://semver.org/spec/v2.0.0.html).
   session resume, repository-change detection, keyboard-first navigation,
   light/dark themes.
 - SQLite derived cache (delete-safe); prefetching of adjacent frames.
-- 74 automated tests: 44 engine tests against real git fixtures (including a
-  500-commit history) and 30 vitest UI tests.
+- 101 automated tests: 56 engine tests against real git fixtures (including a
+  500-commit history) and 45 vitest UI tests, plus an in-app end-to-end audit.
