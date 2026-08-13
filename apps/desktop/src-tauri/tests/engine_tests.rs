@@ -44,6 +44,11 @@ fn branch_replay_resolves_merge_base() {
     assert_eq!(range.base_sha, b.base, "Frame 0 must be the merge base");
     assert_eq!(subjects(&range), vec!["feat one", "feat two"]);
     assert_eq!(range.head_sha, b.feat2);
+    assert_eq!(range.commits[0].sha, b.feat1);
+    // Replaying from main's actual tip (not the merge base) gives the same
+    // feature commits, since main never touched the feature files.
+    let exact = git::history::resolve_replay(&r, Some(&b.main_extra), Some("feature"), false, false).expect("resolve");
+    assert_eq!(subjects(&exact), vec!["feat one", "feat two"]);
 }
 
 #[test]
@@ -56,6 +61,11 @@ fn full_range_includes_merged_branch_and_merge_commit() {
     assert_eq!(range.commits[0].sha, m.feat1);
     assert_eq!(range.commits[1].sha, m.feat2);
     assert_eq!(range.commits[2].sha, m.merge);
+    // From the original base, the replay covers the whole main-line story too.
+    let all = git::history::resolve_replay(&r, Some(&m.base), Some(&m.merge), false, false).expect("resolve");
+    assert_eq!(all.commits.len(), 4);
+    assert!(all.commits.iter().any(|c| c.sha == m.main_extra));
+    assert!(all.commits.iter().any(|c| c.sha == m.merge));
 }
 
 #[test]
@@ -418,7 +428,6 @@ fn working_file_diff_matches_git_and_synthesizes_untracked() {
 #[test]
 fn working_tree_listing_includes_untracked_dirs() {
     let l = linear();
-    let r = repo(&l.f);
     write(&l.f.dir, "scratch/one.ts", "1\n");
     write(&l.f.dir, "scratch/two.ts", "2\n");
 
