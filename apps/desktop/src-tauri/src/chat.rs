@@ -116,17 +116,34 @@ fn settings_path(config_dir: &PathBuf) -> PathBuf {
 }
 
 pub fn load_settings(config_dir: &PathBuf) -> StoredSettings {
-    std::fs::read_to_string(settings_path(config_dir))
+    let path = settings_path(config_dir);
+    let settings: StoredSettings = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    #[cfg(debug_assertions)]
+    eprintln!("CHAT_LOAD provider={} key_len={} path={}", settings.provider, settings.api_key.len(), path.display());
+    settings
 }
 
 pub fn save_settings(config_dir: &PathBuf, settings: &StoredSettings) -> Result<(), AppError> {
+    // The config directory may not exist on first use — create it.
+    std::fs::create_dir_all(config_dir)
+        .map_err(|e| AppError::io("could not create the config directory", e))?;
     let json = serde_json::to_string_pretty(settings)
         .map_err(|e| AppError::new(crate::error::ErrorKind::Cache, format!("could not serialize chat settings: {e}")))?;
-    std::fs::write(settings_path(config_dir), json)
+    let path = settings_path(config_dir);
+    #[cfg(debug_assertions)]
+    eprintln!("CHAT_SAVE provider={} key_len={} path={}", settings.provider, settings.api_key.len(), path.display());
+    std::fs::write(&path, json)
         .map_err(|e| AppError::io("could not save chat settings", e))
+}
+
+/// Remove a stored API key (provider/model stay).
+pub fn clear_key(config_dir: &PathBuf) -> Result<(), AppError> {
+    let mut settings = load_settings(config_dir);
+    settings.api_key = String::new();
+    save_settings(config_dir, &settings)
 }
 
 /// Normalize a settings update: empty model → provider default; empty base

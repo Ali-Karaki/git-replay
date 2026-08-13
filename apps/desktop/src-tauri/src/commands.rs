@@ -289,6 +289,20 @@ pub async fn set_chat_settings(
 }
 
 #[tauri::command]
+pub async fn clear_chat_settings(app: tauri::AppHandle) -> Cmd<crate::chat::ChatSettings> {
+    let config_dir = app.path().app_config_dir().map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
+    crate::chat::clear_key(&config_dir)?;
+    let mut stored = crate::chat::load_settings(&config_dir);
+    crate::chat::normalized(&mut stored);
+    Ok(crate::chat::ChatSettings {
+        provider: stored.provider,
+        model: stored.model,
+        base_url: stored.base_url,
+        has_key: false,
+    })
+}
+
+#[tauri::command]
 pub async fn chat_send(
     app: tauri::AppHandle,
     request_id: String,
