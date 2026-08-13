@@ -246,23 +246,46 @@ pub async fn report_self_test(app: tauri::AppHandle, report: String) -> Cmd<()> 
 #[tauri::command]
 pub async fn get_chat_settings(app: tauri::AppHandle) -> Cmd<crate::chat::ChatSettings> {
     let config_dir = app.path().app_config_dir().map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
-    let stored = crate::chat::load_settings(&config_dir);
-    Ok(crate::chat::ChatSettings { provider: stored.provider, model: stored.model, has_key: !stored.api_key.trim().is_empty() })
+    let mut stored = crate::chat::load_settings(&config_dir);
+    crate::chat::normalized(&mut stored);
+    Ok(crate::chat::ChatSettings {
+        provider: stored.provider,
+        model: stored.model,
+        base_url: stored.base_url,
+        has_key: !stored.api_key.trim().is_empty(),
+    })
 }
 
 #[tauri::command]
-pub async fn set_chat_settings(app: tauri::AppHandle, provider: String, model: String, api_key: Option<String>) -> Cmd<crate::chat::ChatSettings> {
+pub async fn set_chat_settings(
+    app: tauri::AppHandle,
+    provider: String,
+    model: String,
+    base_url: Option<String>,
+    api_key: Option<String>,
+) -> Cmd<crate::chat::ChatSettings> {
     let config_dir = app.path().app_config_dir().map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
     let mut stored = crate::chat::load_settings(&config_dir);
     stored.provider = provider;
     stored.model = model;
+    if let Some(url) = base_url {
+        if !url.trim().is_empty() {
+            stored.base_url = url.trim().to_string();
+        }
+    }
     if let Some(key) = api_key {
         if !key.trim().is_empty() {
             stored.api_key = key.trim().to_string();
         }
     }
+    crate::chat::normalized(&mut stored);
     crate::chat::save_settings(&config_dir, &stored)?;
-    Ok(crate::chat::ChatSettings { provider: stored.provider, model: stored.model, has_key: !stored.api_key.trim().is_empty() })
+    Ok(crate::chat::ChatSettings {
+        provider: stored.provider,
+        model: stored.model,
+        base_url: stored.base_url,
+        has_key: !stored.api_key.trim().is_empty(),
+    })
 }
 
 #[tauri::command]

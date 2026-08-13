@@ -11,7 +11,9 @@ interface ChatState {
   open: boolean;
   messages: ChatMessage[];
   sending: boolean;
+  provider: string;
   model: string;
+  baseUrl: string;
   hasKey: boolean;
   settingsOpen: boolean;
   pendingId: string | null;
@@ -20,7 +22,7 @@ interface ChatState {
   clearMessages(): void;
   setSettingsOpen(v: boolean): void;
   loadSettings(): Promise<void>;
-  saveSettings(model: string, apiKey: string | null): Promise<void>;
+  saveSettings(provider: string, model: string, baseUrl: string | null, apiKey: string | null): Promise<void>;
   send(question: string): Promise<void>;
   appendChunk(id: string, text: string): void;
   finishStream(id: string, error: string | null): void;
@@ -34,7 +36,9 @@ export const useChat = create<ChatState>()(
       open: false,
       messages: [],
       sending: false,
+      provider: "anthropic",
       model: "claude-opus-5",
+      baseUrl: "",
       hasKey: false,
       settingsOpen: false,
       pendingId: null,
@@ -55,15 +59,15 @@ export const useChat = create<ChatState>()(
       async loadSettings() {
         try {
           const s = await api.getChatSettings();
-          set({ model: s.model, hasKey: s.hasKey });
+          set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey });
         } catch {
           // Settings unavailable — chat just stays disabled-looking.
         }
       },
 
-      async saveSettings(model, apiKey) {
-        const s = await api.setChatSettings("anthropic", model, apiKey);
-        set({ model: s.model, hasKey: s.hasKey, settingsOpen: false });
+      async saveSettings(provider, model, baseUrl, apiKey) {
+        const s = await api.setChatSettings(provider, model, baseUrl, apiKey);
+        set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey, settingsOpen: false });
       },
 
       async send(question) {
