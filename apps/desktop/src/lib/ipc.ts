@@ -3,7 +3,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  BranchInfo, CacheInfo, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
+  BranchInfo, CacheInfo, ChatSettings, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
   FileDiff, HeadState, PrReplay, ReplayRange, RepoInfo, SearchResult,
   SnapshotStats, TagInfo, TreeEntry, WorkingTreeFrame,
 } from "./types";
@@ -70,5 +70,14 @@ export const api = {
   },
   clearCache(): Promise<CacheInfo> {
     return invoke("clear_cache");
+  },
+  getChatSettings(): Promise<ChatSettings> {
+    return invoke("get_chat_settings");
+  },
+  setChatSettings(provider: string, model: string, apiKey: string | null): Promise<ChatSettings> {
+    return invoke("set_chat_settings", { provider, model, apiKey });
+  },
+  chatSend(requestId: string, messages: Array<{ role: string; content: string }>): Promise<void> {
+    return invoke("chat_send", { requestId, messagesJson: JSON.stringify(messages) });
   },
 };

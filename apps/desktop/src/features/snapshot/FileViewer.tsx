@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { getFileAtCommit } from "../../lib/dataCaches";
 import { useData } from "../../lib/useData";
-import { formatBytes, isLikelyImage } from "../../lib/format";
+import { dirname, formatBytes, isLikelyImage } from "../../lib/format";
 import { renderMarkdown } from "../../lib/markdown";
 import { langForPath } from "../../lib/langs";
 import { highlightLines } from "../../lib/highlight";
@@ -14,7 +14,7 @@ import type { FileAtCommit } from "../../lib/types";
 import { EvolutionIcon, ImageIcon, WarningIcon } from "../../components/Icons";
 import { ErrorPanel, Skeleton } from "../../components/States";
 
-function TextFile({ file, path }: { file: FileAtCommit; path: string }) {
+function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string; onNavigate: (path: string) => void }) {
   const lines = useMemo(() => (file.content ?? "").split("\n"), [file.content]);
   const lang = langForPath(path);
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -52,6 +52,20 @@ function TextFile({ file, path }: { file: FileAtCommit; path: string }) {
   }, [lang, lines, start, end, windowKey]);
 
   if (preview && isMarkdown) {
+    // Time-aware links: a relative link navigates the file viewer to that
+    // path AT THE SAME COMMIT — the whole point of the product.
+    const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (/^https?:/i.test(href) || href.startsWith("#")) return; // external/anchors behave normally
+      e.preventDefault();
+      const base = dirname(path);
+      const resolved = href.startsWith("/")
+        ? href.slice(1)
+        : `${base ? base + "/" : ""}${href}`.replace(/\/\.\//g, "/");
+      onNavigate(resolved.split("#")[0]);
+    };
     return (
       <div className="file-viewer">
         <div className="diff-toolbar">
@@ -60,7 +74,7 @@ function TextFile({ file, path }: { file: FileAtCommit; path: string }) {
           <span className="spacer" />
           <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>preview</button>
         </div>
-        <div className="md-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        <div className="md-preview" onClick={onPreviewClick} dangerouslySetInnerHTML={{ __html: previewHtml }} />
       </div>
     );
   }
@@ -116,6 +130,7 @@ export function FileViewer() {
   const index = useReplay((s) => s.index);
   const hasWorkingTree = useReplay((s) => s.hasWorkingTree);
   const selectedFile = useReplay((s) => s.selectedFile);
+  const setSelectedFile = useReplay((s) => s.setSelectedFile);
   const setView = useReplay((s) => s.setView);
   const sha = range ? frameSha(range, index, hasWorkingTree) : null;
 
@@ -135,7 +150,7 @@ export function FileViewer() {
 
   return (
     <div className="snapshot-content">
-      {f.kind === "text" && <TextFile file={f} path={f.path} />}
+      {f.kind === "text" && <TextFile file={f} path={f.path} onNavigate={setSelectedFile} />}
       {f.kind === "binary" &&
         (isLikelyImage(f.path) ? (
           <ImageFile file={f} path={f.path} />

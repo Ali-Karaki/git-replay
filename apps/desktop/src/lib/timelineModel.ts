@@ -13,7 +13,9 @@ export interface DayBucket {
   count: number;
   firstIndex: number;
   lastIndex: number;
-  day: number;
+  /** Local-midnight epoch seconds — keeps bucket boundaries consistent with
+   *  the day labels shown to the user. */
+  dayStart: number;
 }
 
 export interface TimelineLayout {
@@ -91,23 +93,25 @@ export function buildTimelineLayout(
   }
 
   // Day buckets over frames 0..n (frame 0 uses the base commit's date; the
-  // working-tree frame lands in today's bucket).
-  const DAY = 86_400;
+  // working-tree frame lands in today's bucket). Buckets follow LOCAL days so
+  // the labels and the grouping agree with what the user sees.
   const frames: Array<{ ts: number; index: number }> = [{ ts: range.baseTs, index: 0 }];
   range.commits.forEach((c, i) => frames.push({ ts: c.commitTs, index: i + 1 }));
   if (hasWt) frames.push({ ts: Math.floor(Date.now() / 1000), index: range.commits.length + 1 });
-  const byDay = new Map<number, DayBucket>();
+  const byDay = new Map<string, DayBucket>();
   for (const f of frames) {
-    const day = Math.floor(f.ts / DAY);
-    const b = byDay.get(day);
+    const d = new Date(f.ts * 1000);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const dayStart = Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 1000);
+    const b = byDay.get(key);
     if (b) {
       b.count += 1;
       b.lastIndex = f.index;
     } else {
-      byDay.set(day, { count: 1, firstIndex: f.index, lastIndex: f.index, day });
+      byDay.set(key, { count: 1, firstIndex: f.index, lastIndex: f.index, dayStart });
     }
   }
-  const buckets = [...byDay.values()].sort((a, b) => a.day - b.day);
+  const buckets = [...byDay.values()].sort((a, b) => a.dayStart - b.dayStart);
   const bucketW = usable / Math.max(buckets.length, 1);
   return {
     pxPer: 1,

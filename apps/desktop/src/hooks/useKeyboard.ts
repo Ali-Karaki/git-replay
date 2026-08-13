@@ -11,9 +11,10 @@ export function useKeyboard(opts: {
   onOpenPalette: () => void;
   onClosePalette: () => void;
   onFocusSearch: () => void;
+  onToggleCheatsheet: () => void;
   paletteOpen: boolean;
 }) {
-  const { onOpenPalette, onClosePalette, onFocusSearch, paletteOpen } = opts;
+  const { onOpenPalette, onClosePalette, onFocusSearch, onToggleCheatsheet, paletteOpen } = opts;
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -33,6 +34,12 @@ export function useKeyboard(opts: {
         return;
       }
       if (typing) return;
+
+      if (e.key === "?") {
+        e.preventDefault();
+        onToggleCheatsheet();
+        return;
+      }
 
       const s = useReplay.getState();
       if (!s.range) return;
@@ -97,5 +104,5 @@ export function useKeyboard(opts: {
     }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onOpenPalette, onClosePalette, onFocusSearch, paletteOpen]);
+  }, [onOpenPalette, onClosePalette, onFocusSearch, onToggleCheatsheet, paletteOpen]);
 }

@@ -156,3 +156,22 @@ export interface CacheInfo {
   path: string;
   sizeBytes: number;
 }
+
+export interface ChatSettings {
+  provider: string;
+  model: string;
+  hasKey: boolean;
+}
+
+export interface ChatEvent {
+  id: string;
+  text?: string;
+  error?: string;
+  done?: boolean;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  error?: boolean;
+}

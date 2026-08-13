@@ -40,6 +40,9 @@ export function Welcome() {
         <button className="btn btn-primary btn-large" onClick={pickAndOpen} disabled={busy}>
           <FolderIcon size={15} /> {busy ? "Opening…" : "Open repository"}
         </button>
+        <button className="btn" onClick={() => void useReplay.getState().createDemoRepo()} disabled={busy}>
+          Try the demo <span className="dim">— a 14-commit repository with a merge, renames, and binaries</span>
+        </button>
         {session && (
           <button className="btn" onClick={() => void resumeSession()} disabled={busy}>
             Resume last replay <span className="dim">({session.repoPath.split(/[\\/]/).pop()})</span>

@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod chat;
 pub mod commands;
 pub mod error;
 pub mod git;
@@ -52,6 +53,9 @@ pub fn run() {
             commands::ensure_demo_fixture,
             commands::dirty_demo_fixture,
             commands::commit_demo_fixture,
+            commands::get_chat_settings,
+            commands::set_chat_settings,
+            commands::chat_send,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

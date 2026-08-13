@@ -242,3 +242,45 @@ pub async fn report_self_test(app: tauri::AppHandle, report: String) -> Cmd<()> 
     }
     Ok(())
 }
+
+#[tauri::command]
+pub async fn get_chat_settings(app: tauri::AppHandle) -> Cmd<crate::chat::ChatSettings> {
+    let config_dir = app.path().app_config_dir().map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
+    let stored = crate::chat::load_settings(&config_dir);
+    Ok(crate::chat::ChatSettings { provider: stored.provider, model: stored.model, has_key: !stored.api_key.trim().is_empty() })
+}
+
+#[tauri::command]
+pub async fn set_chat_settings(app: tauri::AppHandle, provider: String, model: String, api_key: Option<String>) -> Cmd<crate::chat::ChatSettings> {
+    let config_dir = app.path().app_config_dir().map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
+    let mut stored = crate::chat::load_settings(&config_dir);
+    stored.provider = provider;
+    stored.model = model;
+    if let Some(key) = api_key {
+        if !key.trim().is_empty() {
+            stored.api_key = key.trim().to_string();
+        }
+    }
+    crate::chat::save_settings(&config_dir, &stored)?;
+    Ok(crate::chat::ChatSettings { provider: stored.provider, model: stored.model, has_key: !stored.api_key.trim().is_empty() })
+}
+
+#[tauri::command]
+pub async fn chat_send(
+    app: tauri::AppHandle,
+    request_id: String,
+    messages_json: String,
+) -> Cmd<()> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| crate::error::AppError::io("config dir", std::io::Error::other(e.to_string())))?;
+    let messages: Vec<crate::chat::WireMessage> = serde_json::from_str(&messages_json)
+        .map_err(|e| crate::error::AppError::new(crate::error::ErrorKind::InvalidState, format!("bad message payload: {e}")))?;
+    let emitter = app.clone();
+    let rid = request_id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = crate::chat::run_chat_request(emitter, config_dir, &rid, &messages);
+    });
+    Ok(())
+}
