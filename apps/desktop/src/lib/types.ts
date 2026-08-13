@@ -150,3 +150,8 @@ export interface HeadState {
   branch: string | null;
   dirty: boolean;
 }
+
+export interface CacheInfo {
+  path: string;
+  sizeBytes: number;
+}

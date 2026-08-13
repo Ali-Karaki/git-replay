@@ -16,6 +16,8 @@ import { ChangeMap } from "./features/map/ChangeMap";
 import { Timeline } from "./features/timeline/Timeline";
 import { Transport } from "./features/transport/Transport";
 import { CommandPalette } from "./features/palette/CommandPalette";
+import { SettingsPage } from "./features/settings/SettingsPage";
+import { AboutPage } from "./features/about/AboutPage";
 import { focusSearch } from "./features/search/SearchBar";
 
 function ReplayWorkspace() {
@@ -52,6 +54,7 @@ function ReplayWorkspace() {
 function App() {
   const repo = useReplay((s) => s.repo);
   const range = useReplay((s) => s.range);
+  const screen = useReplay((s) => s.screen);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   usePlayback();
@@ -66,10 +69,18 @@ function App() {
 
   return (
     <div className="app">
-      {repo && <TopBar onOpenPalette={() => setPaletteOpen(true)} />}
-      {!repo && <Welcome />}
-      {repo && !range && <RangeSetup />}
-      {repo && range && <ReplayWorkspace />}
+      {repo && screen !== "settings" && screen !== "about" && <TopBar onOpenPalette={() => setPaletteOpen(true)} />}
+      {screen === "settings" ? (
+        <SettingsPage />
+      ) : screen === "about" ? (
+        <AboutPage />
+      ) : !repo ? (
+        <Welcome />
+      ) : !range ? (
+        <RangeSetup />
+      ) : (
+        <ReplayWorkspace />
+      )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );

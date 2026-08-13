@@ -3,7 +3,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  BranchInfo, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
+  BranchInfo, CacheInfo, CommitDetail, CommitMeta, EvolutionEntry, FileAtCommit,
   FileDiff, HeadState, PrReplay, ReplayRange, RepoInfo, SearchResult,
   SnapshotStats, TagInfo, TreeEntry, WorkingTreeFrame,
 } from "./types";
@@ -64,5 +64,11 @@ export const api = {
   },
   getCommitUrl(repoId: number, sha: string): Promise<string | null> {
     return invoke("get_commit_url", { repoId, sha });
+  },
+  getCacheInfo(): Promise<CacheInfo> {
+    return invoke("get_cache_info");
+  },
+  clearCache(): Promise<CacheInfo> {
+    return invoke("clear_cache");
   },
 };

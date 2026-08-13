@@ -16,14 +16,15 @@ pub fn run() {
             // the app keeps working (invariant: cache loss never loses data).
             let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-            let cache = match cache::CacheStore::open(&cache_dir.join("replay_cache.db")) {
+            let cache_path = cache_dir.join("replay_cache.db");
+            let cache = match cache::CacheStore::open(&cache_path) {
                 Ok(store) => Some(store),
                 Err(e) => {
                     eprintln!("git-replay: cache disabled ({e})");
                     None
                 }
             };
-            app.manage(AppState::new(cache));
+            app.manage(AppState::new(cache, Some(cache_path)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -44,6 +45,8 @@ pub fn run() {
             commands::get_head_state,
             commands::resolve_pr_replay,
             commands::get_commit_url,
+            commands::get_cache_info,
+            commands::clear_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

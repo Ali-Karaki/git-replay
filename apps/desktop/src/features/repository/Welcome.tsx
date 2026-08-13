@@ -37,6 +37,14 @@ export function Welcome() {
             Resume last replay <span className="dim">({session.repoPath.split(/[\\/]/).pop()})</span>
           </button>
         )}
+        <div className="welcome-links">
+          <button className="btn-ghost" onClick={() => useReplay.setState({ screen: "about" })}>
+            About & how it works
+          </button>
+          <button className="btn-ghost" onClick={() => useReplay.setState({ screen: "settings" })}>
+            Settings
+          </button>
+        </div>
         {error && (
           <ErrorPanel
             error={{ message: error, detail: errorDetail }}

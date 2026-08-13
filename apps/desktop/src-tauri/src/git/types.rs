@@ -243,3 +243,10 @@ pub struct HeadState {
     pub branch: Option<String>,
     pub dirty: bool,
 }
+
+/// Where the derived cache lives and how big it is (settings page).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheInfo {
+    pub path: String,
+    pub size_bytes: u64,
+}

@@ -139,3 +139,13 @@ pub async fn resolve_pr_replay(
 pub async fn get_commit_url(state: State<'_, AppState>, repo_id: u32, sha: String) -> Cmd<Option<String>> {
     block(&state, move |st| st.commit_url(repo_id, &sha)).await
 }
+
+#[tauri::command]
+pub async fn get_cache_info(state: State<'_, AppState>) -> Cmd<CacheInfo> {
+    block(&state, move |st| Ok(st.cache_info())).await
+}
+
+#[tauri::command]
+pub async fn clear_cache(state: State<'_, AppState>) -> Cmd<CacheInfo> {
+    block(&state, move |st| st.clear_cache()).await
+}

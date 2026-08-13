@@ -6,6 +6,7 @@ use crate::error::{AppError, ErrorKind};
 use crate::git::types::*;
 use crate::git::{self, Repo};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -21,17 +22,52 @@ pub struct AppState {
     repos: Arc<Mutex<HashMap<u32, Repo>>>,
     cache: Arc<Mutex<Option<CacheStore>>>,
     wt_cache: Arc<Mutex<WtCache>>,
+    cache_path: Option<PathBuf>,
     next_repo_id: Arc<AtomicU32>,
 }
 
 impl AppState {
-    pub fn new(cache: Option<CacheStore>) -> Self {
+    pub fn new(cache: Option<CacheStore>, cache_path: Option<PathBuf>) -> Self {
         Self {
             repos: Arc::new(Mutex::new(HashMap::new())),
             cache: Arc::new(Mutex::new(cache)),
             wt_cache: Arc::new(Mutex::new(WtCache::default())),
+            cache_path,
             next_repo_id: Arc::new(AtomicU32::new(1)),
         }
+    }
+
+    /// Where the cache lives and how large it is.
+    pub fn cache_info(&self) -> CacheInfo {
+        let size = self
+            .cache_path
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .unwrap_or(0);
+        CacheInfo {
+            path: self.cache_path.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
+            size_bytes: size,
+        }
+    }
+
+    /// Drop the cache database, delete its files, and reopen fresh — the app
+    /// keeps working and rebuilds derived data from Git (invariant 6).
+    pub fn clear_cache(&self) -> Result<CacheInfo, AppError> {
+        if let Some(path) = self.cache_path.clone() {
+            {
+                let mut guard = self.cache.lock().expect("cache mutex poisoned");
+                *guard = None; // drop the connection (releases the file)
+            }
+            let stem = path.file_name().and_then(|n| n.to_str()).unwrap_or("replay_cache.db").to_string();
+            let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+            for suffix in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(dir.join(format!("{stem}{suffix}")));
+            }
+            let reopened = CacheStore::open(&path).ok();
+            *self.cache.lock().expect("cache mutex poisoned") = reopened;
+        }
+        Ok(self.cache_info())
     }
 
     fn cache(&self) -> std::sync::MutexGuard<'_, Option<CacheStore>> {

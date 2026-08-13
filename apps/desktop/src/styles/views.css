@@ -213,3 +213,67 @@
 .main-panel.collapsed { background: var(--bg); }
 .range-tags { display: inline-flex; align-items: center; gap: 5px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+
+/* -- pages (settings / about) ------------------------------------------------------- */
+
+.page { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+.page-header h1 { margin: 0; font-size: 17px; }
+.page-body { padding: 8px 22px 40px; max-width: 780px; }
+.settings-section { margin-top: 18px; }
+.settings-section h3 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-faint); margin: 0 0 4px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row-label { display: flex; flex-direction: column; gap: 1px; }
+.settings-row-hint { font-size: 11px; }
+.settings-row-control { display: flex; align-items: center; gap: 8px; }
+.settings-cache-size { font-size: 12.5px; }
+.settings-note { margin-top: 8px; font-size: 12px; color: var(--add); }
+.segmented { display: flex; gap: 4px; }
+.kbd-table { display: flex; flex-direction: column; }
+.kbd-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 5px 0;
+}
+.kbd-keys {
+  font-family: var(--mono); font-size: 11.5px;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 2px 7px;
+  min-width: 110px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.about-hero { display: flex; gap: 18px; align-items: flex-start; margin-top: 18px; }
+.about-hero h2 { margin: 4px 0 6px; font-size: 20px; }
+.about-hero p { margin: 0 0 6px; max-width: 560px; }
+.about-version { font-size: 11.5px; }
+.about-section { margin-top: 22px; }
+.about-section h3 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-faint); margin: 0 0 8px;
+}
+.about-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.about-step, .about-principle {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.about-step h4, .about-principle h4 { margin: 0 0 4px; font-size: 13px; }
+.about-step p, .about-principle p { margin: 0; font-size: 12px; line-height: 1.5; }
+.about-principles { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.welcome-links { display: flex; gap: 16px; margin-top: 4px; }
