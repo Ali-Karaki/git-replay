@@ -9,14 +9,23 @@ import {
 
 const SPEEDS = [0.5, 1, 2] as const;
 
-/** Speed pill + popover: playback multiplier and the adaptive toggle. */
+/** Speed pill + popover: playback multiplier and the adaptive toggle.
+ *  Keyboard-navigable (↑/↓/Home/End) with proper menu roles. */
 function SpeedMenu() {
   const speed = useReplay((s) => s.speed);
   const adaptive = useReplay((s) => s.adaptivePlayback);
+  const playing = useReplay((s) => s.playing);
   const set = useReplay.setState;
 
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // The popover is transient: it must never sit over the position readout
+  // during playback (e.g. Space pressed with the menu open).
+  useEffect(() => {
+    setOpen(false);
+  }, [playing]);
 
   // Close the menu on outside click or Escape.
   useEffect(() => {
@@ -35,6 +44,33 @@ function SpeedMenu() {
     };
   }, [open]);
 
+  // Focus the currently selected speed when the menu opens.
+  useEffect(() => {
+    if (open) {
+      itemRefs.current[SPEEDS.findIndex((s) => s === speed)]?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    const items = itemRefs.current.filter(Boolean) as HTMLButtonElement[];
+    if (items.length === 0) return;
+    const cur = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      items[(cur + 1) % items.length]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      items[(cur - 1 + items.length) % items.length]?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  };
+
   return (
     <div className="speed-control" ref={menuRef}>
       <button
@@ -43,16 +79,28 @@ function SpeedMenu() {
         title="Playback speed"
         aria-label="Playback speed"
         aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls="speed-menu"
       >
         <SpeedIcon size={13} /> {speed}×
       </button>
       {open && (
-        <div className="speed-menu">
-          <div className="speed-menu-title dim">Playback speed</div>
-          {SPEEDS.map((s) => (
+        <div
+          id="speed-menu"
+          className="speed-menu"
+          role="menu"
+          aria-label="Playback speed"
+          onKeyDown={onMenuKeyDown}
+        >
+          {SPEEDS.map((s, i) => (
             <button
               key={s}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
               className={`speed-option ${speed === s ? "on" : ""}`}
+              role="menuitemradio"
+              aria-checked={speed === s}
               onClick={() => {
                 set({ speed: s });
                 setOpen(false);
@@ -62,10 +110,16 @@ function SpeedMenu() {
             </button>
           ))}
           <button
+            ref={(el) => {
+              itemRefs.current[SPEEDS.length] = el;
+            }}
             className={`chip speed-adaptive ${adaptive ? "on" : ""}`}
-            role="checkbox"
+            role="menuitemcheckbox"
             aria-checked={adaptive}
-            onClick={() => set({ adaptivePlayback: !adaptive })}
+            onClick={() => {
+              set({ adaptivePlayback: !adaptive });
+              setOpen(false);
+            }}
           >
             Adaptive speed <span className="dim">(big commits get more time)</span>
           </button>

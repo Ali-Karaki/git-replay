@@ -30,6 +30,13 @@ interface ChatState {
 }
 
 let nextId = 1;
+/** True once settings have been fetched at least once this session — keeps
+ *  reopen cheap (no per-open flash of the no-key state) without persisting
+ *  hasKey. Saves/clears keep it fresh from then on. */
+let settingsLoaded = false;
+/** Monotonic guard: a save or clear invalidates any in-flight load so a slow
+ *  getChatSettings can never clobber a newer value. */
+let settingsSeq = 0;
 
 export const useChat = create<ChatState>()(
   persist(
@@ -46,9 +53,7 @@ export const useChat = create<ChatState>()(
 
       setOpen(open) {
         set({ open });
-        // Always refresh on open — the key may have changed since the last
-        // time the panel was up, and callers must not have to remember.
-        if (open) void get().loadSettings();
+        if (open && !settingsLoaded) void get().loadSettings();
       },
 
       clearMessages() {
@@ -60,8 +65,11 @@ export const useChat = create<ChatState>()(
       },
 
       async loadSettings() {
+        const seq = ++settingsSeq;
         try {
           const s = await api.getChatSettings();
+          if (seq !== settingsSeq) return; // superseded by a save/clear
+          settingsLoaded = true;
           set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey });
         } catch {
           // Settings unavailable — chat just stays disabled-looking.
@@ -69,13 +77,17 @@ export const useChat = create<ChatState>()(
       },
 
       async saveSettings(provider, model, baseUrl, apiKey) {
+        settingsSeq++;
         const s = await api.setChatSettings(provider, model, baseUrl, apiKey);
+        settingsLoaded = true;
         // Keep the settings open so the "Saved ✓" feedback is visible.
         set({ provider: s.provider, model: s.model, baseUrl: s.baseUrl, hasKey: s.hasKey });
       },
 
       async clearKey() {
+        settingsSeq++;
         const s = await api.clearChatSettings();
+        settingsLoaded = true;
         set({ hasKey: s.hasKey });
       },
 

@@ -4,31 +4,25 @@
 
 import { useReplay, type ViewMode } from "../../stores/replay";
 import { useChat } from "../../stores/chat";
+import { VIEWS } from "../../lib/views";
 import {
   ChatIcon, ChevronLeftIcon, ChevronRight, DiffIcon, EvolutionIcon,
   FolderIcon, GearIcon, HelpIcon, MapIcon, type IconProps,
 } from "../../components/Icons";
 
-interface NavItem {
-  id: ViewMode;
-  icon: (p: IconProps) => React.ReactNode;
-  label: string;
-  key: string;
-  sub: string;
-}
-
-const NAV: NavItem[] = [
-  { id: "step", icon: DiffIcon, label: "What changed", key: "1", sub: "Commits, files, diffs" },
-  { id: "snapshot", icon: FolderIcon, label: "Browse code", key: "2", sub: "Files at any point" },
-  { id: "evolution", icon: EvolutionIcon, label: "File story", key: "3", sub: "Follow one file" },
-  { id: "map", icon: MapIcon, label: "Overview", key: "4", sub: "Whole-range heatmap" },
-];
+const VIEW_ICONS: Record<ViewMode, (p: IconProps) => React.ReactNode> = {
+  step: DiffIcon,
+  snapshot: FolderIcon,
+  evolution: EvolutionIcon,
+  map: MapIcon,
+};
 
 export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void }) {
   const view = useReplay((s) => s.view);
   const hasRange = useReplay((s) => s.range !== null);
   const collapsed = useReplay((s) => s.sidebarCollapsed);
   const setView = useReplay((s) => s.setView);
+  const setScreen = useReplay((s) => s.setScreen);
   const set = useReplay.setState;
   const chatOpen = useChat((s) => s.open);
 
@@ -43,24 +37,27 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeftIcon size={14} />}
       </button>
       <nav className="sidebar-nav">
-        {NAV.map((v) => (
-          <button
-            key={v.id}
-            className={`sidebar-item ${view === v.id && hasRange ? "active" : ""}`}
-            onClick={() => setView(v.id)}
-            // No replay is open until a range resolves — the views have
-            // nothing to show yet, so keep the nav inert instead of
-            // silently doing nothing.
-            disabled={!hasRange}
-            aria-current={view === v.id && hasRange ? "page" : undefined}
-            title={collapsed ? `${v.label} (${v.key})` : !hasRange ? "Pick a replay first" : undefined}
-          >
-            <span className="sidebar-icon"><v.icon size={15} /></span>
-            <span className="sidebar-label">{v.label}</span>
-            <span className="sidebar-kbd">{v.key}</span>
-            <span className="sidebar-sub">{v.sub}</span>
-          </button>
-        ))}
+        {VIEWS.map((v) => {
+          const Icon = VIEW_ICONS[v.id];
+          return (
+            <button
+              key={v.id}
+              className={`sidebar-item ${view === v.id && hasRange ? "active" : ""}`}
+              onClick={() => setView(v.id)}
+              // No replay is open until a range resolves — the views have
+              // nothing to show yet, so keep the nav inert instead of
+              // silently doing nothing.
+              disabled={!hasRange}
+              aria-current={view === v.id && hasRange ? "page" : undefined}
+              title={collapsed ? `${v.label} (${v.key})` : !hasRange ? "Pick a replay first" : undefined}
+            >
+              <span className="sidebar-icon"><Icon size={15} /></span>
+              <span className="sidebar-label">{v.label}</span>
+              <span className="sidebar-kbd">{v.key}</span>
+              <span className="sidebar-sub">{v.sub}</span>
+            </button>
+          );
+        })}
       </nav>
       <div className="sidebar-footer">
         <button
@@ -83,7 +80,8 @@ export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void
         </button>
         <button
           className="sidebar-item"
-          onClick={() => set({ screen: "settings" })}
+          // setScreen (not a raw set) so playback stops while Settings is up.
+          onClick={() => setScreen("settings")}
           title={collapsed ? "Settings" : undefined}
           aria-label={collapsed ? "Settings" : undefined}
         >

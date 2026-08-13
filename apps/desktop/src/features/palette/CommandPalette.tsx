@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useReplay } from "../../stores/replay";
 import { formatDateTime, shortSha } from "../../lib/format";
 import { copyText } from "../../lib/clipboard";
+import { VIEWS } from "../../lib/views";
 import { CheckIcon, ChevronRight } from "../../components/Icons";
 
 interface Command {
@@ -48,6 +49,13 @@ export function CommandPalette({
   const s = useReplay();
   const set = useReplay.setState;
 
+  // The expensive part of the palette — formatting every commit entry —
+  // changes only with the range, not with every store tick.
+  const commitEntries = useMemo<Command[]>(() => {
+    if (!s.range || s.range.commits.length > JUMP_CAP) return [];
+    return s.range.commits.map((c, i) => commitCommand(c, i, s.setIndex));
+  }, [s.range, s.setIndex]);
+
   const commands = useMemo<Command[]>(() => {
     const range = s.range;
     const cmds: Command[] = [];
@@ -59,13 +67,15 @@ export function CommandPalette({
       cmds.push({ id: "last", label: "Go to HEAD", hint: "End", run: () => s.setIndex(range.commits.length) });
       // Jump-to-commit entries — only for small enough ranges; larger ones
       // get on-demand commit search while typing (see `commitSearch`).
-      if (range.commits.length <= JUMP_CAP) {
-        range.commits.forEach((c, i) => cmds.push(commitCommand(c, i, s.setIndex)));
+      cmds.push(...commitEntries);
+      for (const v of VIEWS) {
+        cmds.push({
+          id: `view-${v.id}`,
+          label: `${v.label} view${s.view === v.id ? " (current)" : ""}`,
+          hint: v.key,
+          run: () => s.setView(v.id),
+        });
       }
-      cmds.push({ id: "view-step", label: `What changed view${s.view === "step" ? " (current)" : ""}`, hint: "1", run: () => s.setView("step") });
-      cmds.push({ id: "view-snapshot", label: `Browse code view${s.view === "snapshot" ? " (current)" : ""}`, hint: "2", run: () => s.setView("snapshot") });
-      cmds.push({ id: "view-evolution", label: `File story view${s.view === "evolution" ? " (current)" : ""}`, hint: "3", run: () => s.setView("evolution") });
-      cmds.push({ id: "view-map", label: `Overview view${s.view === "map" ? " (current)" : ""}`, hint: "4", run: () => s.setView("map") });
       if (s.hasWorkingTree) {
         cmds.push({ id: "go-wt", label: "Go to Working Tree frame", run: () => s.setIndex(range.commits.length + 1) });
       }
@@ -83,7 +93,11 @@ export function CommandPalette({
         cmds.push({ id: "copy-path", label: `Copy file path: ${sel}`, run: () => void copyText(sel) });
       }
     }
-    cmds.push({ id: "collapse-sidebar", label: `${s.sidebarCollapsed ? "Expand" : "Collapse"} sidebar`, run: () => set({ sidebarCollapsed: !s.sidebarCollapsed }) });
+    // Only meaningful while the sidebar exists (any repo screen other than
+    // settings/about) — elsewhere it would flip persisted state invisibly.
+    if (s.repo !== null && s.screen !== "settings" && s.screen !== "about") {
+      cmds.push({ id: "collapse-sidebar", label: `${s.sidebarCollapsed ? "Expand" : "Collapse"} sidebar`, run: () => set({ sidebarCollapsed: !s.sidebarCollapsed }) });
+    }
     cmds.push({ id: "open", label: "Open repository…", run: () => { onClose(); set({ repo: null, range: null }); } });
     cmds.push({ id: "change-range", label: "Change replay range…", run: () => { onClose(); set({ range: null }); } });
     cmds.push({ id: "settings", label: "Settings", run: () => { onClose(); s.setScreen("settings"); } });
@@ -93,14 +107,12 @@ export function CommandPalette({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, open]);
 
-  // For ranges too large for per-commit entries, surface matching commits as
-  // the user types. Lowercased subjects are precomputed once per range and
-  // the query is debounced, so keystrokes on huge histories never trigger a
-  // full-array scan with per-item allocations.
+  // Precomputed search index over the range's commits: lowercased subject,
+  // SHA, and the 1-based commit number (so "250" jumps to commit 250).
+  // Lowercasing happens once per range — keystrokes never re-allocate.
   const commitIndex = useMemo(() => {
-    const range = s.range;
-    if (!range || range.commits.length <= JUMP_CAP) return null;
-    return range.commits.map((c, i) => ({ c, i, lower: c.subject.toLowerCase() }));
+    if (!s.range) return null;
+    return s.range.commits.map((c, i) => ({ c, i, lower: c.subject.toLowerCase(), num: String(i + 1) }));
   }, [s.range]);
 
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -109,11 +121,20 @@ export function CommandPalette({
     return () => window.clearTimeout(timer);
   }, [query]);
 
+  // On-demand commit jumps. On small ranges the per-commit entries above
+  // already cover subjects, so this only adds what they can't: full-SHA
+  // prefixes. On large ranges it is the only commit source (subject, SHA,
+  // or commit-number prefix).
   const commitSearch = useMemo<Command[]>(() => {
+    if (!commitIndex) return [];
     const q = debouncedQuery.trim().toLowerCase();
-    if (!commitIndex || q.length < 3) return [];
+    if (q.length < 2) return [];
+    const isSha = /^[0-9a-f]{7,}$/.test(q);
+    const large = commitIndex.length > JUMP_CAP;
+    if (!large && !isSha) return [];
     return commitIndex
-      .filter(({ c, lower }) => lower.includes(q) || c.sha.startsWith(q))
+      .filter(({ c, lower, num }) =>
+        isSha ? c.sha.startsWith(q) : lower.includes(q) || c.sha.startsWith(q) || num.startsWith(q))
       .slice(0, 20)
       .map(({ c, i }) => commitCommand(c, i, s.setIndex));
   }, [commitIndex, debouncedQuery, s.setIndex]);
@@ -122,12 +143,19 @@ export function CommandPalette({
     const q = query.trim().toLowerCase();
     if (!q) return commands;
     const matches = commands.filter((c) => c.label.toLowerCase().includes(q) || (c.hint ?? "").toLowerCase().includes(q));
-    return [...commitSearch, ...matches];
+    // Commands first (Enter should run a command when one matches, never a
+    // commit jump), prefix matches above substring matches, then commit
+    // search results — deduped against the entries above.
+    matches.sort((a, b) => Number(b.label.toLowerCase().startsWith(q)) - Number(a.label.toLowerCase().startsWith(q)));
+    const ids = new Set(matches.map((c) => c.id));
+    return [...matches, ...commitSearch.filter((c) => !ids.has(c.id))];
   }, [commands, commitSearch, query]);
 
+  // Reset the highlight when the query changes — not on every store tick
+  // (playback, toggles, etc.), which would yank selection mid-navigation.
   useEffect(() => {
     setSelected(0);
-  }, [filtered]);
+  }, [query]);
 
   if (!open) return null;
 
@@ -135,6 +163,8 @@ export function CommandPalette({
     onClose();
     cmd.run();
   };
+
+  const visible = filtered.slice(0, 50);
 
   return (
     <div className="palette-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -148,20 +178,20 @@ export function CommandPalette({
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();
-              setSelected((i) => Math.min(i + 1, filtered.length - 1));
+              setSelected((i) => Math.min(i + 1, visible.length - 1));
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               setSelected((i) => Math.max(i - 1, 0));
-            } else if (e.key === "Enter" && filtered[selected]) {
-              run(filtered[selected]);
+            } else if (e.key === "Enter" && visible[selected]) {
+              run(visible[selected]);
             } else if (e.key === "Escape") {
               onClose();
             }
           }}
         />
         <div className="palette-list">
-          {filtered.length === 0 && <div className="palette-empty">No matching commands.</div>}
-          {filtered.slice(0, 50).map((cmd, i) => (
+          {visible.length === 0 && <div className="palette-empty">No matching commands.</div>}
+          {visible.map((cmd, i) => (
             <button
               key={cmd.id}
               className={`palette-item ${i === selected ? "selected" : ""}`}

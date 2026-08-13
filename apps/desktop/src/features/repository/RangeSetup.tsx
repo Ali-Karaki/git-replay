@@ -97,16 +97,20 @@ export function RangeSetup() {
 
   if (!repo) return null;
 
+  // Plain-language preview of what the engine will resolve — the empty-ref
+  // fallbacks mirror resolve_replay in history.rs exactly (merge-base of
+  // HEAD, HEAD itself, or the root commit), never a guessed branch.
   const summary = (() => {
     if (mode === "branch") {
-      const b = base || "the default branch";
       const h = head || "HEAD";
-      return `Will replay: ${b} → ${h}${useMergeBase ? " (from the merge base)" : ""}`;
+      const b = base || (useMergeBase ? `the merge base of HEAD and ${h}` : "HEAD");
+      return `Will replay: ${b} → ${h}${useMergeBase && base ? " (from the merge base)" : ""}`;
     }
     if (mode === "range") {
       return `Will replay: from ${from || "the root commit"} to ${to || "HEAD"}`;
     }
     if (mode === "tags") {
+      if (!fromTag || !toTag) return "";
       return `Will replay: from ${fromTag} to ${toTag}`;
     }
     if (mode === "pr") {
@@ -204,7 +208,7 @@ export function RangeSetup() {
             {base && base === head && (
               <div className="range-hint warn">
                 From and To are the same branch — this replay would be empty. Pick a different branch,
-                turn off “start at the merge base”, or use Watch everything.
+                open <strong>More options</strong> and turn off “start at the merge base”, or use Watch everything.
               </div>
             )}
           </div>

@@ -486,15 +486,19 @@ export async function runSelfTest(): Promise<void> {
       useReplay.getState().setScreen("replay");
       useReplay.setState({ range: null });
       await waitFor(".range-setup");
-      clickByText(".range-mode-card", "Watch between releases");
+      if (!clickByText(".range-mode-card", "Watch between releases")) return false;
       await wait(200);
       const selects = document.querySelectorAll(".range-form select").length;
+      // The branch mode's "More options" disclosure must be gone — proves
+      // the mode actually switched (branch mode also renders two selects).
+      const switched = document.querySelector(".range-more") === null;
       useReplay.setState({ screen: "replay" });
-      return selects >= 2;
+      return selects >= 2 && switched;
     });
 
     await step("B12 PR mode surfaces errors gracefully", async () => {
-      clickByText(".range-mode-card", "Watch a pull request");
+      if (!clickByText(".range-mode-card", "Watch a pull request")) return false;
+      if (!(await waitFor(".pr-form", 2000))) return false;
       await wait(200);
       setInput(".pr-form input", "999999");
       clickByText(".pr-form .btn", "Load");
@@ -515,10 +519,14 @@ export async function runSelfTest(): Promise<void> {
       click(".chat-trigger");
       if (!(await waitFor(".chat-panel", 3000))) throw new Error("chat panel did not open");
       if (settings.hasKey) {
-        record("B13 note", true, "skipped no-key error assertion — a key is configured");
         click(".chat-header-actions .btn-icon:last-child"); // close
         await wait(200);
-        return document.querySelector(".chat-panel") === null;
+        // Assert via store state, not just DOM (the DOM check alone can't
+        // tell a working close from a no-op).
+        const closed = useChat.getState().open === false && document.querySelector(".chat-panel") === null;
+        // Only claim the skip after the close-check has passed.
+        if (closed) record("B13 note", true, "skipped no-key error assertion — a key is configured");
+        return closed;
       }
       // Send without a key: the engine must respond with a friendly error.
       setInput(".chat-input", "hello");
@@ -617,7 +625,9 @@ export async function runSelfTest(): Promise<void> {
         const text = document.querySelector(".chat-messages")?.textContent ?? "";
         // A configured key that the provider rejects (stale/invalid) is an
         // environment condition, not an app regression — note and skip.
-        if (/rejected|provider returned an error|Could not reach/.test(text)) {
+        // Cover the common phrasings: our engine's friendly messages plus
+        // raw 401/unauthorized/invalid-key wording from any provider.
+        if (/401|unauthorized|invalid api key|api key.*(invalid|rejected)|rejected|provider returned an error|could not reach/i.test(text)) {
           record("B14 note", true, `skipped — the configured key was rejected by the provider (${text.slice(0, 120)})`);
           click(".chat-header-actions .btn-icon:last-child");
           return true;
