@@ -9,8 +9,28 @@ project snapshot at any point in history, and follow a single file through its w
 
 It is a development timelapse player, not a Git client.
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-passing-green.svg)](https://github.com/<owner>/git_replay/actions)
+[![Tests](https://img.shields.io/badge/tests-81%20passing-green.svg)](#testing)
+
 The full product specification lives in [`convo_with_gpt.txt`](convo_with_gpt.txt)
 (product summary, UX spec, invariants, and implementation order).
+
+## Install
+
+Download an installer from [GitHub Releases](https://github.com/<owner>/git_replay/releases) —
+no compilation needed. Every `v*` tag is built automatically by CI
+([release workflow](.github/workflows/release.yml)):
+
+| Platform | Packages |
+|----------|----------|
+| Windows | `.msi` installer, `.exe` (NSIS) setup |
+| macOS | `.dmg` for Intel (x64) and Apple Silicon (arm64) |
+| Linux | `.deb`, `.AppImage` |
+
+A `SHA256SUMS.txt` manifest is attached to each release. macOS builds are ad-hoc
+signed until signing secrets are configured — right-click → Open on first launch.
+On Linux, Git must be installed (`sudo apt install git`).
 
 ## Architecture
 
@@ -127,3 +147,11 @@ Suggested replays on the demo repo:
 5. Deleting the cache never deletes repository information.
 6. Previous/Next navigation feels instantaneous.
 7. Large repositories never block the UI thread.
+
+## Open source
+
+MIT licensed. Community files: [CONTRIBUTING.md](CONTRIBUTING.md),
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md),
+[SUPPORT.md](SUPPORT.md), and issue/PR templates under `.github/`.
+`docs/architecture.md` and `docs/decisions/` record the design — start there if
+you want to contribute.
