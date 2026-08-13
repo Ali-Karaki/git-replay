@@ -9,7 +9,7 @@ target/
 Cargo.lock.orig
 
 # Tauri
-src-tauri/gen/
+**/src-tauri/gen/
 
 # OS / editor
 .DS_Store
