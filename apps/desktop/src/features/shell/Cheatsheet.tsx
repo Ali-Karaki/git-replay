@@ -1,17 +1,6 @@
 // `?` keyboard cheatsheet overlay — dismiss with any key or a click.
 
-const SHORTCUTS: Array<[string, string]> = [
-  ["← / →", "previous / next commit"],
-  ["Shift+← / →", "jump 5 commits"],
-  ["] / [", "next / previous changed file"],
-  ["Space", "play / pause"],
-  ["Home / End", "base / HEAD"],
-  ["1 / 2 / 3 / 4", "Step / Snapshot / File Evolution / Change Map"],
-  ["/", "search commits, files, and changed content"],
-  ["Ctrl+K", "command palette"],
-  ["?", "this cheatsheet"],
-  ["Esc", "close overlays"],
-];
+import { SHORTCUTS } from "../../lib/shortcuts";
 
 export function Cheatsheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;

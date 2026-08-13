@@ -7,17 +7,7 @@ import { useReplay, type Theme } from "../../stores/replay";
 import type { CacheInfo } from "../../lib/types";
 import { formatBytes } from "../../lib/format";
 import { RefreshIcon } from "../../components/Icons";
-
-const KEYBOARD: Array<[string, string]> = [
-  ["← / →", "previous / next commit"],
-  ["Shift+← / Shift+→", "jump 5 commits"],
-  ["Space", "play / pause"],
-  ["Home / End", "base / HEAD"],
-  ["1 / 2 / 3 / 4", "Step / Snapshot / File Evolution / Change Map"],
-  ["/", "search commits, files, and changed content"],
-  ["Ctrl+K", "command palette"],
-  ["Esc", "close dialogs"],
-];
+import { SHORTCUTS } from "../../lib/shortcuts";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -157,7 +147,7 @@ export function SettingsPage() {
 
         <Section title="Keyboard">
           <div className="kbd-table">
-            {KEYBOARD.map(([key, action]) => (
+            {SHORTCUTS.map(([key, action]) => (
               <div key={key} className="kbd-row">
                 <span className="kbd-keys">{key}</span>
                 <span className="dim">{action}</span>

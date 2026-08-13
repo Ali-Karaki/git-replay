@@ -46,7 +46,9 @@ export const useChat = create<ChatState>()(
 
       setOpen(open) {
         set({ open });
-        if (open && !get().hasKey) void get().loadSettings();
+        // Always refresh on open — the key may have changed since the last
+        // time the panel was up, and callers must not have to remember.
+        if (open) void get().loadSettings();
       },
 
       clearMessages() {

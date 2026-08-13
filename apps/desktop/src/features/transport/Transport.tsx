@@ -1,7 +1,13 @@
-// Transport controls: first/prev/play-pause/next/last + speed + position.
+// Transport controls: media-player style — first/prev/play-pause/next/last
+// around a big play button, a speed menu, and the position readout.
 
+import { useEffect, useRef, useState } from "react";
 import { frameCount, useReplay } from "../../stores/replay";
-import { FirstIcon, LastIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "../../components/Icons";
+import {
+  FirstIcon, LastIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, SpeedIcon,
+} from "../../components/Icons";
+
+const SPEEDS = [0.5, 1, 2] as const;
 
 export function Transport() {
   const range = useReplay((s) => s.range);
@@ -13,11 +19,33 @@ export function Transport() {
   const setPlaying = useReplay((s) => s.setPlaying);
   const setIndex = useReplay((s) => s.setIndex);
   const step = useReplay((s) => s.step);
+  const set = useReplay.setState;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the speed menu on outside click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   if (!range) return null;
   const total = frameCount(range, hasWorkingTree) - 1;
   const atStart = index === 0;
   const atEnd = index >= total;
+  const commit = index > 0 && index <= range.commits.length ? range.commits[index - 1] : null;
 
   return (
     <div className="transport">
@@ -27,7 +55,7 @@ export function Transport() {
       <button className="btn-icon" onClick={() => step(-1)} disabled={atStart} title="Previous commit (←)" aria-label="Previous commit">
         <PrevIcon />
       </button>
-      <button className="btn-play" onClick={() => setPlaying(!playing)} title="Play / Pause (Space)" aria-label={playing ? "Pause" : "Play"}>
+      <button className="btn-play btn-play-big" onClick={() => setPlaying(!playing)} title="Play / Pause (Space)" aria-label={playing ? "Pause" : "Play"}>
         {playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
         <span className="btn-play-label">{playing ? "Pause" : "Play"}</span>
       </button>
@@ -38,41 +66,57 @@ export function Transport() {
         <LastIcon />
       </button>
 
-      <select
-        className="select"
-        value={speed}
-        onChange={(e) => useReplay.setState({ speed: Number(e.target.value) })}
-        title="Playback speed"
-        aria-label="Playback speed"
-      >
-        <option value={0.5}>0.5×</option>
-        <option value={1}>1×</option>
-        <option value={2}>2×</option>
-      </select>
-
-      <button
-        className={`chip ${adaptive ? "on" : ""}`}
-        onClick={() => useReplay.setState({ adaptivePlayback: !adaptive })}
-        title="Adaptive playback: small commits flash by, substantial ones pause"
-      >
-        adaptive
-      </button>
-
       <span className="transport-position">
         {index === 0 ? (
-          <span className="dim">Base</span>
+          <strong>Base</strong>
         ) : index === total && hasWorkingTree ? (
-          <strong>Working Tree</strong>
+          <strong>Working tree</strong>
         ) : (
-          <strong>Commit {index}</strong>
-        )}{" "}
-        <span className="dim">/ {total}</span>
-        {playing && index > 0 && index <= range.commits.length && (
-          <span className="playing-subject dim" title={range.commits[index - 1].subject}>
-            {range.commits[index - 1].subject}
+          <strong>Commit {index} of {range.commits.length}</strong>
+        )}
+        {commit && (
+          <span className="transport-subject" title={commit.subject}>
+            {commit.subject}
           </span>
         )}
       </span>
+
+      <div className="speed-control" ref={menuRef}>
+        <button
+          className="speed-btn"
+          onClick={() => setMenuOpen((o) => !o)}
+          title="Playback speed"
+          aria-label="Playback speed"
+          aria-expanded={menuOpen}
+        >
+          <SpeedIcon size={13} /> {speed}×
+        </button>
+        {menuOpen && (
+          <div className="speed-menu">
+            <div className="speed-menu-title dim">Playback speed</div>
+            {SPEEDS.map((s) => (
+              <button
+                key={s}
+                className={`speed-option ${speed === s ? "on" : ""}`}
+                onClick={() => {
+                  set({ speed: s });
+                  setMenuOpen(false);
+                }}
+              >
+                {s}×
+              </button>
+            ))}
+            <button
+              className={`chip speed-adaptive ${adaptive ? "on" : ""}`}
+              role="checkbox"
+              aria-checked={adaptive}
+              onClick={() => set({ adaptivePlayback: !adaptive })}
+            >
+              Adaptive speed <span className="dim">(big commits get more time)</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

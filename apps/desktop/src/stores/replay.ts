@@ -55,7 +55,7 @@ interface ReplayState {
   timelineScroll: number;
   groupChapters: boolean;
   expandedDirs: string[];
-  leftCollapsed: boolean;
+  sidebarCollapsed: boolean;
   // session
   screen: Screen;
   busy: boolean;
@@ -133,7 +133,7 @@ export const useReplay = create<ReplayState>()(
       timelineScroll: 0,
       groupChapters: false,
       expandedDirs: [],
-      leftCollapsed: false,
+      sidebarCollapsed: false,
       screen: "replay",
       busy: false,
       error: null,
@@ -381,6 +381,7 @@ export const useReplay = create<ReplayState>()(
         adaptivePlayback: s.adaptivePlayback,
         view: s.view,
         groupChapters: s.groupChapters,
+        sidebarCollapsed: s.sidebarCollapsed,
         session: s.session,
       }),
       onRehydrateStorage: () => (state) => {

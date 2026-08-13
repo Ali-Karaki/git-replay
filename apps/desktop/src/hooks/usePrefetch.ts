@@ -19,8 +19,11 @@ export function usePrefetch() {
       const target = index + d;
       if (target < 0 || target > range.commits.length) continue;
       if (target === 0) continue; // base frame has no detail
-      const sha = range.commits[target - 1].sha;
-      prefetchCommit(repo.id, sha, mergeParent);
+      const commit = range.commits[target - 1];
+      // The selected merge parent only applies to merge commits — passing it
+      // for single-parent commits makes the engine index out of bounds.
+      const parentIndex = commit.parents.length > 1 ? mergeParent : null;
+      prefetchCommit(repo.id, commit.sha, parentIndex);
     }
   }, [repo, range, index, mergeParent]);
 }
