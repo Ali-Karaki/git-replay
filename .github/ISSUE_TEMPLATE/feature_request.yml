@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an idea for Git Replay
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Git Replay is a *replay* product — the best features answer questions about
+        time, continuity, and progression of a codebase. Review the non-goals in the
+        spec (`convo_with_gpt.txt`) before proposing.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to replay or understand?
+      description: Describe the scenario and how it feels today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed experience
+      description: How should it look and feel? Where does it live (timeline, step, snapshot, evolution, map)?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways this could be solved, if you explored any.

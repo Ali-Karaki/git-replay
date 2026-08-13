@@ -1,0 +1,51 @@
+name: Bug report
+description: Something isn't working correctly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The engine depends on your system git — please include its version.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >
+        If possible, describe a repo shape that triggers it (e.g. "a branch
+        with a merge commit, then rename a file in the next commit"). You can
+        also build a fixture with `sh scripts/make-demo-fixture.sh` and attach
+        the steps.
+    validations:
+      required: true
+  - type: input
+    id: git-version
+    attributes:
+      label: Git version
+      description: Output of `git --version`
+      placeholder: "git version 2.53.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 / macOS 15 / Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Git Replay version
+      placeholder: "0.1.0"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Any error details shown in the app ("Show details" expands the raw git stderr).
