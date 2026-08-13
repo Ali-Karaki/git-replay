@@ -14,6 +14,33 @@ import { SwapIcon, WarningIcon } from "../../components/Icons";
 const ROW_HEIGHT = 20;
 const OVERSCAN = 30;
 
+// Scroll positions per file (spec 12: moving between frames must not reset
+// the viewport — the same file keeps its position).
+const scrollPositions = new Map<string, number>();
+
+function useScrollPreservation(scrollKey: string | null, ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !scrollKey) return;
+    const saved = scrollPositions.get(scrollKey);
+    if (saved !== undefined) {
+      el.scrollTop = saved;
+    }
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        scrollPositions.set(scrollKey, el.scrollTop);
+      });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [scrollKey, ref]);
+}
+
 function Highlighted({ html }: { html: string }) {
   return <span className="diff-code-text" dangerouslySetInnerHTML={{ __html: html }} />;
 }
@@ -54,7 +81,7 @@ interface UnifiedRow {
   line?: DiffLine;
 }
 
-function UnifiedRows({ parsed, lang, wrap }: { parsed: ParsedDiff; lang: string | null; wrap: boolean }) {
+function UnifiedRows({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; lang: string | null; wrap: boolean; scrollKey: string | null }) {
   const rows = useMemo<UnifiedRow[]>(() => {
     const out: UnifiedRow[] = [];
     for (const hunk of parsed.hunks) {
@@ -65,6 +92,7 @@ function UnifiedRows({ parsed, lang, wrap }: { parsed: ParsedDiff; lang: string 
   }, [parsed]);
 
   const parentRef = useRef<HTMLDivElement | null>(null);
+  useScrollPreservation(scrollKey ? `u:${scrollKey}` : null, parentRef);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -109,9 +137,10 @@ function UnifiedRows({ parsed, lang, wrap }: { parsed: ParsedDiff; lang: string 
 
 // -- split ---------------------------------------------------------------------
 
-function SplitRowsView({ parsed, lang, wrap }: { parsed: ParsedDiff; lang: string | null; wrap: boolean }) {
+function SplitRowsView({ parsed, lang, wrap, scrollKey }: { parsed: ParsedDiff; lang: string | null; wrap: boolean; scrollKey: string | null }) {
   const rows = useMemo(() => buildSplitRows(parsed), [parsed]);
   const parentRef = useRef<HTMLDivElement | null>(null);
+  useScrollPreservation(scrollKey ? `s:${scrollKey}` : null, parentRef);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -222,9 +251,9 @@ export function DiffView({ patch, oldPath, newPath }: { patch: string | null; ol
         </button>
       </div>
       {diffMode === "unified" ? (
-        <UnifiedRows parsed={parsed} lang={lang} wrap={wrap} />
+        <UnifiedRows parsed={parsed} lang={lang} wrap={wrap} scrollKey={displayPath} />
       ) : (
-        <SplitRowsView parsed={parsed} lang={lang} wrap={wrap} />
+        <SplitRowsView parsed={parsed} lang={lang} wrap={wrap} scrollKey={displayPath} />
       )}
     </div>
   );

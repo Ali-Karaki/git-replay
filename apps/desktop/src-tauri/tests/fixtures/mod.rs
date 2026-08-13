@@ -349,3 +349,30 @@ pub fn with_large_diff() -> Large {
     let c1 = commit(&f.dir, "generate large file");
     Large { f, c1 }
 }
+
+pub struct BigHistory {
+    pub f: Fixture,
+    pub first: String,
+    pub last: String,
+    pub count: usize,
+}
+
+/// A repository with `n` linear commits; every 10th commit touches
+/// `src/tracked.ts` with a searchable marker.
+pub fn with_big_history(n: usize) -> BigHistory {
+    let f = init();
+    write(&f.dir, "README.md", "big\n");
+    let first = commit(&f.dir, "commit 0000");
+    for i in 1..n {
+        if i % 10 == 0 {
+            let content: String = (0..50).map(|j| format!("line {j}\n")).collect();
+            write(&f.dir, "src/tracked.ts", &format!("// iteration {i:04}\n{content}"));
+        } else {
+            let content: String = (0..5).map(|j| format!("v{j}\n")).collect();
+            write(&f.dir, "src/churn.ts", &format!("// churn {i:04}\n{content}"));
+        }
+        commit(&f.dir, &format!("commit {i:04}"));
+    }
+    let last = sha(&f.dir);
+    BigHistory { f, first, last, count: n }
+}

@@ -35,12 +35,12 @@ function cssVar(name: string, fallback: string): string {
 
 /** Heuristic chapters (spec 21): an alternate timeline presentation, never a
  *  replacement for the raw commits — clicking a chapter jumps to its start. */
-interface Chapter {
+export interface Chapter {
   start: number;
   title: string;
 }
 
-function computeChapters(range: ReplayRange, hasWt: boolean): Chapter[] {
+export function computeChapters(range: ReplayRange, hasWt: boolean): Chapter[] {
   const chapters: Chapter[] = [{ start: 0, title: "Base" }];
   const prefixOf = (c: ReplayRange["commits"][0]): string | null => {
     const m = c.subject.match(/^(\w+)(\([^)]*\))?:/);
@@ -65,7 +65,8 @@ function computeChapters(range: ReplayRange, hasWt: boolean): Chapter[] {
       const p2 = prefixOf(c);
       const prefixChange = !!p1 && !!p2 && p1 !== p2;
       const afterMerge = prev.parents.length > 1;
-      startNew = timeGap || prefixChange || afterMerge;
+      const isMergeCommit = c.parents.length > 1;
+      startNew = timeGap || prefixChange || afterMerge || isMergeCommit;
     }
     if (startNew) chapters.push({ start: i, title: titleOf(c) });
   }
