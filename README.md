@@ -85,14 +85,30 @@ docs/                  Architecture and decisions
 
 Prerequisites: Node.js 20+, Rust stable (MSVC toolchain on Windows), system Git.
 
+Run everything from the repository root with `make`:
+
+```sh
+make dev          # run the app
+make build        # typecheck + build the frontend
+make test         # UI tests (vitest: store, diff, chapters, markdown)
+make test-engine  # engine tests (cargo) against programmatic fixture repos
+make lint         # biome check (make fix auto-formats)
+make check        # everything: lint + build + all tests
+make selftest     # the app with its in-app end-to-end audit
+make kill         # kill a running app (it locks the cargo build)
+make release      # production bundle (installers)
+```
+
+The same scripts exist under `apps/desktop` if you prefer:
+
 ```sh
 cd apps/desktop
 npm install
-npm run tauri dev        # run the app
-npm run tauri build      # production bundle (installers)
-npm run build            # typecheck + build the frontend
-npm test                 # UI tests (vitest: store, diff, chapters, markdown)
-cd src-tauri && cargo test   # engine tests (44) against programmatic fixture repos
+npm run tauri dev
+npm run tauri build
+npm run build
+npm test
+cd src-tauri && cargo test
 ```
 
 ### Try it
