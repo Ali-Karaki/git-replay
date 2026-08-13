@@ -5,6 +5,7 @@ pub mod git;
 pub mod state;
 
 use state::AppState;
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()

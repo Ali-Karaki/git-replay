@@ -4,12 +4,12 @@
 //! Merge commits are diffed against an explicit parent — the first parent by
 //! default, any parent on request — never as a combined diff.
 
-use super::{lossy, run_git, Repo, EMPTY_TREE_SHA};
+use super::{lossy, run_git, Repo};
 use crate::error::AppError;
 use crate::git::types::{CommitDetail, CommitStats, CommitMeta, FileChange, FileStatus};
 
 /// One parsed `--name-status` record (status letter + paths).
-struct RawNameStatus {
+pub(crate) struct RawNameStatus {
     status: FileStatus,
     similarity: Option<u8>,
     old_path: Option<String>,
@@ -18,7 +18,7 @@ struct RawNameStatus {
 
 /// Parse `git diff-tree -r --name-status -z` output:
 /// entries are `M\0path\0`, `R100\0old\0new\0`, … with stray NULs between.
-pub fn parse_name_status(bytes: &[u8]) -> Vec<RawNameStatus> {
+pub(crate) fn parse_name_status(bytes: &[u8]) -> Vec<RawNameStatus> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
@@ -37,6 +37,11 @@ pub fn parse_name_status(bytes: &[u8]) -> Vec<RawNameStatus> {
         let token = &bytes[start..i];
         i += 1; // consume NUL
         if token.is_empty() {
+            continue;
+        }
+        // `diff-tree --root` (single-argument form) prefixes the entries with
+        // the commit sha — skip it.
+        if token.len() >= 40 && token.iter().all(|b| b.is_ascii_hexdigit()) {
             continue;
         }
         let (status, similarity) = match token[0] {
@@ -66,28 +71,43 @@ pub fn parse_name_status(bytes: &[u8]) -> Vec<RawNameStatus> {
     out
 }
 
-/// Parse `git diff --numstat -z` output: `add\0del\0path\0` per file,
-/// `-\0-\0path\0` for binary, and an empty old-name slot for renames.
-/// Returns `(additions, deletions, path)` with -1 for binary rows.
-pub fn parse_numstat(bytes: &[u8]) -> Vec<(i64, i64, String)> {
+/// Parse `git diff --numstat -z` output (also diff-tree/log variants):
+/// `add\tdel\t\0path\0` per file, `-\t-\t\0path\0` for binary, and rename
+/// rows `add\tdel\t\0new\0old\0`. Returns `(additions, deletions, new_path)`
+/// with -1 for binary rows — the new path keeps rows mergeable with
+/// `--name-status` output.
+pub(crate) fn parse_numstat(bytes: &[u8]) -> Vec<(i64, i64, String)> {
+    // Rows are NUL-terminated: `add\tdel\tpath\0`. Rename rows leave the
+    // third tab-field empty and carry `\0old\0new\0` after it instead.
     let tokens: Vec<&[u8]> = bytes.split(|&b| b == 0).collect();
     let mut out = Vec::new();
     let mut i = 0;
-    while i + 2 < tokens.len() {
-        let add = numstat_num(tokens[i]);
-        let del = numstat_num(tokens[i + 1]);
-        let mut path = tokens[i + 2];
-        let mut consumed = 3;
-        // Renames carry an empty old-name slot before the new name.
-        if path.is_empty() && i + 3 < tokens.len() {
-            path = tokens[i + 3];
-            consumed = 4;
+    while i < tokens.len() {
+        let head = tokens[i];
+        i += 1;
+        if head.is_empty() {
+            continue;
         }
+        let parts: Vec<&[u8]> = head.split(|&b| b == b'\t').collect();
+        if parts.len() < 2 {
+            continue; // commit-sha header, stray separators, ...
+        }
+        let add = numstat_num(parts[0]);
+        let del = numstat_num(parts[1]);
+        let path = parts.get(2).copied().unwrap_or(b"");
         if path.is_empty() {
-            break;
+            // Rename row: the following NUL-separated tokens are [old, new].
+            let mut paths: Vec<String> = Vec::new();
+            while i < tokens.len() && !tokens[i].is_empty() && paths.len() < 2 {
+                paths.push(lossy(tokens[i]));
+                i += 1;
+            }
+            if paths.len() == 2 {
+                out.push((add, del, paths[1].clone()));
+            }
+        } else {
+            out.push((add, del, lossy(path)));
         }
-        out.push((add, del, lossy(path)));
-        i += consumed;
     }
     out
 }
@@ -102,16 +122,18 @@ fn numstat_num(tok: &[u8]) -> i64 {
 
 /// Parse `git diff --shortstat` output:
 /// " 3 files changed, 84 insertions(+), 12 deletions(-)".
-pub fn parse_shortstat(text: &str) -> CommitStats {
+pub(crate) fn parse_shortstat(text: &str) -> CommitStats {
     let mut stats = CommitStats { files_changed: 0, insertions: 0, deletions: 0 };
     for part in text.split(',') {
         let part = part.trim();
+        // diff-tree prefixes the stat with the commit sha line; the number is
+        // always the last whitespace-separated token before the suffix.
         if let Some(rest) = part.strip_suffix("file changed").or_else(|| part.strip_suffix("files changed")) {
-            stats.files_changed = rest.trim().parse().unwrap_or(0);
+            stats.files_changed = rest.split_whitespace().next_back().and_then(|n| n.parse().ok()).unwrap_or(0);
         } else if let Some(rest) = part.strip_suffix("insertion(+)").or_else(|| part.strip_suffix("insertions(+)")) {
-            stats.insertions = rest.trim().parse().unwrap_or(0);
+            stats.insertions = rest.split_whitespace().next_back().and_then(|n| n.parse().ok()).unwrap_or(0);
         } else if let Some(rest) = part.strip_suffix("deletion(-)").or_else(|| part.strip_suffix("deletions(-)")) {
-            stats.deletions = rest.trim().parse().unwrap_or(0);
+            stats.deletions = rest.split_whitespace().next_back().and_then(|n| n.parse().ok()).unwrap_or(0);
         }
     }
     stats
@@ -148,15 +170,16 @@ pub fn commit_detail(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>
         }
     };
 
-    // 2. Per-file line counts (same diff, same order).
+    // 2. Per-file line counts (same diff, same order). diff-tree --root
+    //    handles root commits against the empty tree natively.
     let numstat = match &parent {
         Some(p) => {
-            let args: Vec<&str> = vec!["diff", "-M", "-C", "--numstat", "-z", p, &meta.sha];
+            let args: Vec<&str> = vec!["diff-tree", "-r", "--root", "-M", "-C", "--numstat", "-z", p, &meta.sha];
             let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not read file stats", e))?;
             parse_numstat(&out)
         }
         None => {
-            let args: Vec<&str> = vec!["diff", "-M", "-C", "--numstat", "-z", EMPTY_TREE_SHA, &meta.sha];
+            let args: Vec<&str> = vec!["diff-tree", "-r", "--root", "-M", "-C", "--numstat", "-z", &meta.sha];
             let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not read file stats", e))?;
             parse_numstat(&out)
         }
@@ -165,18 +188,15 @@ pub fn commit_detail(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>
     // 3. Whitespace-only changes: same diff ignoring all whitespace; a file
     //    whose count is 0/0 there (but non-zero normally) is ws-only.
     let ws_paths: std::collections::HashSet<String> = {
-        let args_base: Vec<&str> = vec!["diff", "-M", "-C", "--numstat", "-z", "--ignore-all-space"];
         let out = match &parent {
             Some(p) => {
-                let mut args = args_base.clone();
-                args.push(p);
-                args.push(&meta.sha);
+                let args: Vec<&str> =
+                    vec!["diff-tree", "-r", "--root", "-M", "-C", "--numstat", "-z", "--ignore-all-space", p, &meta.sha];
                 run_git(&repo.path, &args).map_err(|e| AppError::git("could not read whitespace stats", e))?
             }
             None => {
-                let mut args = args_base.clone();
-                args.push(EMPTY_TREE_SHA);
-                args.push(&meta.sha);
+                let args: Vec<&str> =
+                    vec!["diff-tree", "-r", "--root", "-M", "-C", "--numstat", "-z", "--ignore-all-space", &meta.sha];
                 run_git(&repo.path, &args).map_err(|e| AppError::git("could not read whitespace stats", e))?
             }
         };
@@ -190,12 +210,12 @@ pub fn commit_detail(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>
     // 4. Commit-level totals.
     let stats = match &parent {
         Some(p) => {
-            let args: Vec<&str> = vec!["diff", "-M", "--shortstat", p, &meta.sha];
+            let args: Vec<&str> = vec!["diff-tree", "-r", "--root", "-M", "--shortstat", p, &meta.sha];
             let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not read commit stats", e))?;
             parse_shortstat(&lossy(&out))
         }
         None => {
-            let args: Vec<&str> = vec!["diff", "-M", "--shortstat", EMPTY_TREE_SHA, &meta.sha];
+            let args: Vec<&str> = vec!["diff-tree", "-r", "--root", "-M", "--shortstat", &meta.sha];
             let out = run_git(&repo.path, &args).map_err(|e| AppError::git("could not read commit stats", e))?;
             parse_shortstat(&lossy(&out))
         }
@@ -204,7 +224,10 @@ pub fn commit_detail(repo: &Repo, meta: &CommitMeta, parent_index: Option<usize>
     // 5. Merge the three per-file views by index (identical diffs → identical order).
     let mut files = Vec::with_capacity(names.len());
     for (idx, n) in names.into_iter().enumerate() {
-        let (additions, deletions, _) = numstat.get(idx).copied().unwrap_or((-1, -1, String::new()));
+        let (additions, deletions) = match numstat.get(idx) {
+            Some((a, d, _)) => (*a, *d),
+            None => (-1, -1),
+        };
         let binary = additions < 0 || deletions < 0;
         let whitespace_only = !binary
             && additions + deletions > 0
@@ -245,12 +268,13 @@ mod tests {
 
     #[test]
     fn parses_numstat_records() {
-        let bytes = b"84\012\0src/a.ts\0-\0-\0img.png\012\03\0\0renamed.ts\0";
+        // Real format: "add\tdel\tpath\0"; rename rows leave path empty and
+        // carry \0old\0new\0 after it.
+        let bytes = b"84\t12\tsrc/a.ts\0-\t-\timg.png\012\t3\t\0old.ts\0renamed.ts\0";
         let parsed = parse_numstat(bytes);
         assert_eq!(parsed.len(), 3);
         assert_eq!(parsed[0], (84, 12, "src/a.ts".into()));
         assert_eq!(parsed[1], (-1, -1, "img.png".into()));
-        // Rename row: empty old-name slot skipped.
         assert_eq!(parsed[2], (12, 3, "renamed.ts".into()));
     }
 

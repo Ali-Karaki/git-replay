@@ -20,9 +20,6 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The git tree object of the empty tree — the diff base for root commits.
-pub const EMPTY_TREE_SHA: &str = "4b825dc642cb6eb9a0506e54bf8d69288fbee4904";
-
 /// An opened repository. Cheap to clone; commands run against `path`.
 #[derive(Debug, Clone)]
 pub struct Repo {
