@@ -58,6 +58,10 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
+      - name: Lint + format (biome)
+        working-directory: apps/desktop
+        run: npm run lint:ci
+
       - name: Typecheck + bundle
         if: matrix.task == 'typecheck'
         working-directory: apps/desktop

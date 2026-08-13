@@ -181,6 +181,8 @@ export interface ChatEvent {
 }
 
 export interface ChatMessage {
+  /** Stable key for list rendering (persisted messages keep theirs). */
+  id: string;
   role: "user" | "assistant";
   content: string;
   error?: boolean;

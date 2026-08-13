@@ -1,15 +1,15 @@
 // The commit's identity block: subject, metadata, stats, parents (with merge
 // parent selection), body, and "open externally".
 
-import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { CommitDetail } from "../../lib/types";
-import { formatCount, formatDateTime, shortSha } from "../../lib/format";
+import { useState } from "react";
+import { BranchIcon, ChevronDown, ChevronRight, CopyIcon } from "../../components/Icons";
 import { copyText } from "../../lib/clipboard";
+import { formatCount, formatDateTime, shortSha } from "../../lib/format";
 import { api } from "../../lib/ipc";
+import type { CommitDetail } from "../../lib/types";
 import { useData } from "../../lib/useData";
 import { useReplay } from "../../stores/replay";
-import { BranchIcon, ChevronDown, ChevronRight, CopyIcon } from "../../components/Icons";
 
 export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commitNo: number }) {
   const repo = useReplay((s) => s.repo);
@@ -19,10 +19,11 @@ export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commi
   const meta = detail.meta;
   const isMerge = meta.parents.length > 1;
 
-  const commitUrl = useData(
-    repo && meta.sha !== "WORKTREE" ? `url|${repo.id}|${meta.sha}` : null,
-    () => api.getCommitUrl(repo!.id, meta.sha),
-  );
+  const commitUrl = useData(repo && meta.sha !== "WORKTREE" ? `url|${repo.id}|${meta.sha}` : null, () => {
+    // The key guarantees repo is set whenever the loader runs.
+    if (!repo) throw new Error("unreachable: commit-url key requires a repo");
+    return api.getCommitUrl(repo.id, meta.sha);
+  });
 
   const copySha = () => {
     void copyText(meta.sha);
@@ -40,11 +41,16 @@ export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commi
           <span className="dim">·</span>
           <span title={formatDateTime(meta.commitTs)}>{formatDateTime(meta.commitTs)}</span>
           <span className="dim">·</span>
-          <button className="sha-chip" onClick={copySha} title="Copy commit SHA">
+          <button type="button" className="sha-chip" onClick={copySha} title="Copy commit SHA">
             {shortSha(meta.sha)} <CopyIcon size={11} />
           </button>
           {commitUrl.data && (
-            <button className="sha-chip" onClick={() => void openUrl(commitUrl.data!)} title="Open commit on GitHub">
+            <button
+              type="button"
+              className="sha-chip"
+              onClick={() => void openUrl(commitUrl.data ?? "")}
+              title="Open commit on GitHub"
+            >
               ↗
             </button>
           )}
@@ -63,9 +69,10 @@ export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commi
       </div>
 
       {isMerge && (
-        <div className="merge-parents" role="group" aria-label="Merge parent to compare against">
+        <fieldset className="merge-parents" aria-label="Merge parent to compare against">
           {meta.parents.map((p, i) => (
             <button
+              type="button"
               key={p}
               className={`chip ${mergeParent === i ? "on" : ""}`}
               onClick={() => setMergeParent(i)}
@@ -74,12 +81,12 @@ export function CommitHeader({ detail, commitNo }: { detail: CommitDetail; commi
               {i === 0 ? "1st parent" : i === 1 ? "2nd parent" : `${i + 1}th parent`}
             </button>
           ))}
-        </div>
+        </fieldset>
       )}
 
       {meta.body && (
         <div className="commit-body">
-          <button className="body-toggle" onClick={() => setShowBody(!showBody)}>
+          <button type="button" className="body-toggle" onClick={() => setShowBody(!showBody)}>
             {showBody ? <ChevronDown size={12} /> : <ChevronRight size={12} />} description
           </button>
           {showBody && <pre className="commit-body-text">{meta.body}</pre>}

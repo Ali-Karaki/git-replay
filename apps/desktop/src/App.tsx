@@ -1,27 +1,27 @@
 // App shell: welcome → range setup → replay workspace.
 
 import { useState } from "react";
-import { useReplay } from "./stores/replay";
+import { AboutPage } from "./features/about/AboutPage";
+import { ChatPanel } from "./features/chat/ChatPanel";
+import { FileEvolution } from "./features/evolution/FileEvolution";
+import { ChangeMap } from "./features/map/ChangeMap";
+import { CommandPalette } from "./features/palette/CommandPalette";
+import { RangeSetup } from "./features/repository/RangeSetup";
+import { Welcome } from "./features/repository/Welcome";
+import { focusSearch } from "./features/search/SearchBar";
+import { SettingsPage } from "./features/settings/SettingsPage";
+import { Cheatsheet } from "./features/shell/Cheatsheet";
+import { Sidebar } from "./features/shell/Sidebar";
+import { TopBar } from "./features/shell/TopBar";
+import { SnapshotView } from "./features/snapshot/SnapshotView";
+import { StepView } from "./features/step/StepView";
+import { Timeline } from "./features/timeline/Timeline";
+import { Transport } from "./features/transport/Transport";
 import { useKeyboard } from "./hooks/useKeyboard";
 import { usePlayback } from "./hooks/usePlayback";
 import { usePrefetch } from "./hooks/usePrefetch";
 import { useRepoWatch } from "./hooks/useRepoWatch";
-import { Welcome } from "./features/repository/Welcome";
-import { RangeSetup } from "./features/repository/RangeSetup";
-import { TopBar } from "./features/shell/TopBar";
-import { Sidebar } from "./features/shell/Sidebar";
-import { StepView } from "./features/step/StepView";
-import { SnapshotView } from "./features/snapshot/SnapshotView";
-import { FileEvolution } from "./features/evolution/FileEvolution";
-import { ChangeMap } from "./features/map/ChangeMap";
-import { Timeline } from "./features/timeline/Timeline";
-import { Transport } from "./features/transport/Transport";
-import { CommandPalette } from "./features/palette/CommandPalette";
-import { SettingsPage } from "./features/settings/SettingsPage";
-import { AboutPage } from "./features/about/AboutPage";
-import { Cheatsheet } from "./features/shell/Cheatsheet";
-import { ChatPanel } from "./features/chat/ChatPanel";
-import { focusSearch } from "./features/search/SearchBar";
+import { useReplay } from "./stores/replay";
 
 /** An empty range is valid git semantics (base == head), but silently showing
  *  a one-frame workspace reads as "nothing happened" — explain it instead. */
@@ -33,7 +33,7 @@ function EmptyReplay() {
       <div className="empty-hint">
         The base and head you selected point at the same commit, so there is nothing between them to replay.
       </div>
-      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => set({ range: null })}>
+      <button type="button" className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => set({ range: null })}>
         Choose a different range
       </button>
     </div>

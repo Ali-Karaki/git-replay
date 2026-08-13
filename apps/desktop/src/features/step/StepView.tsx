@@ -4,17 +4,17 @@
 // The synthetic Working Tree frame (spec 35) reuses the same components.
 
 import { useEffect, useMemo } from "react";
+import { ErrorPanel, Skeleton } from "../../components/States";
 import { getCommitDetail, getFileAtCommit, getFileDiff } from "../../lib/dataCaches";
-import { useData } from "../../lib/useData";
+import { isLikelyImage } from "../../lib/format";
 import { api } from "../../lib/ipc";
-import { frameCommit, frameSha, useReplay } from "../../stores/replay";
 import type { CommitDetail } from "../../lib/types";
-import { ChangedFiles } from "./ChangedFiles";
-import { CommitHeader } from "./CommitHeader";
+import { useData } from "../../lib/useData";
+import { frameCommit, frameSha, useReplay } from "../../stores/replay";
 import { DiffView } from "../diff/DiffView";
 import { ImageDiff } from "../diff/ImageDiff";
-import { isLikelyImage } from "../../lib/format";
-import { ErrorPanel, Skeleton } from "../../components/States";
+import { ChangedFiles } from "./ChangedFiles";
+import { CommitHeader } from "./CommitHeader";
 
 export function StepView() {
   const repo = useReplay((s) => s.repo);
@@ -29,10 +29,11 @@ export function StepView() {
   const isWtFrame = !!range && !!hasWorkingTree && index === range.commits.length + 1;
   const sha = range ? frameSha(range, index, hasWorkingTree) : null;
 
-  const detail = useData(
-    commit && repo && !isWtFrame ? `${repo.id}|${commit.sha}|${mergeParent}` : null,
-    () => getCommitDetail(repo!.id, commit!.sha, commit!.parents.length > 1 ? mergeParent : null),
-  );
+  const detail = useData(commit && repo && !isWtFrame ? `${repo.id}|${commit.sha}|${mergeParent}` : null, () => {
+    // The key guarantees repo and commit are set whenever the loader runs.
+    if (!repo || !commit) throw new Error("unreachable: detail key requires repo and commit");
+    return getCommitDetail(repo.id, commit.sha, commit.parents.length > 1 ? mergeParent : null);
+  });
 
   // Preserve the selected file across frames (spec 12): follow renames (the
   // selection moves to the new path), keep it when this commit touches it,
@@ -57,13 +58,23 @@ export function StepView() {
   }, [detail.data, selectedFile, repo, sha, setSelectedFile]);
 
   const fileDiff = useData(
-    repo && sha && selectedFile && !isWtFrame && detail.data ? `${repo.id}|${sha}|${mergeParent}|${selectedFile}` : null,
-    () => getFileDiff(repo!.id, sha!, selectedFile!, detail.data!.meta.parents.length > 1 ? mergeParent : null),
+    repo && sha && selectedFile && !isWtFrame && detail.data
+      ? `${repo.id}|${sha}|${mergeParent}|${selectedFile}`
+      : null,
+    () => {
+      // The key guarantees every value below is set whenever the loader runs.
+      if (!repo || !sha || !selectedFile || !detail.data) {
+        throw new Error("unreachable: file-diff key requires repo/sha/file/detail");
+      }
+      return getFileDiff(repo.id, sha, selectedFile, detail.data.meta.parents.length > 1 ? mergeParent : null);
+    },
   );
 
   // Keep the selected file visible when navigating with ]/[ or the keyboard.
   // (Must stay above the conditional returns — Rules of Hooks.)
   useEffect(() => {
+    // Both values are scroll triggers, not inputs to the DOM query.
+    if (!selectedFile && index === 0) return;
     document.querySelector(".file-row.selected")?.scrollIntoView({ block: "nearest" });
   }, [selectedFile, index]);
 
@@ -78,16 +89,14 @@ export function StepView() {
       <div className="base-frame">
         <h2 className="commit-subject">Starting point</h2>
         <p className="dim">
-          Base snapshot at <code>{sha.slice(0, 7)}</code>. Step forward to see the first change, or switch to
-          Snapshot view to browse the project as it was here.
+          Base snapshot at <code>{sha.slice(0, 7)}</code>. Step forward to see the first change, or switch to Snapshot
+          view to browse the project as it was here.
         </p>
       </div>
     );
   }
 
-  const selectedChange = detail.data?.files.find(
-    (f) => f.newPath === selectedFile || f.oldPath === selectedFile,
-  );
+  const selectedChange = detail.data?.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile);
   const parentSha = detail.data?.meta.parents[mergeParent] ?? null;
 
   return (
@@ -145,13 +154,12 @@ function WorkingTreeStep({ sha }: { sha: string }) {
   const range = useReplay((s) => s.range);
   const wtFrame = useReplay((s) => s.wtFrame);
   const selectedFile = useReplay((s) => s.selectedFile);
-  const selectedChange = wtFrame?.files.find(
-    (f) => f.newPath === selectedFile || f.oldPath === selectedFile,
-  );
-  const diff = useData(
-    repo && selectedFile ? `${repo.id}|WORKTREE|${selectedFile}` : null,
-    () => api.getWorkingFileDiff(repo!.id, selectedFile!),
-  );
+  const selectedChange = wtFrame?.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile);
+  const diff = useData(repo && selectedFile ? `${repo.id}|WORKTREE|${selectedFile}` : null, () => {
+    // The key guarantees repo and selectedFile are set whenever the loader runs.
+    if (!repo || !selectedFile) throw new Error("unreachable: working-tree diff key requires repo and file");
+    return api.getWorkingFileDiff(repo.id, selectedFile);
+  });
 
   const synthetic: CommitDetail | null = useMemo(() => {
     if (!wtFrame || !range) return null;

@@ -4,16 +4,17 @@ import { useState } from "react";
 import { WarningIcon } from "./Icons";
 
 export function Skeleton({ rows }: { rows: number }) {
-  return (
-    <div className="skeleton" aria-hidden="true">
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="skeleton-line" style={{ width: `${40 + ((i * 17) % 55)}%` }} />
-      ))}
-    </div>
-  );
+  // A single element: a repeating gradient draws the placeholder lines.
+  return <div className="skeleton" aria-hidden="true" style={{ height: rows * 22 }} />;
 }
 
-export function ErrorPanel({ error, onRetry }: { error: { message: string; detail?: string | null }; onRetry?: () => void }) {
+export function ErrorPanel({
+  error,
+  onRetry,
+}: {
+  error: { message: string; detail?: string | null };
+  onRetry?: () => void;
+}) {
   const [showDetail, setShowDetail] = useState(false);
   return (
     <div className="error-panel" role="alert">
@@ -22,13 +23,13 @@ export function ErrorPanel({ error, onRetry }: { error: { message: string; detai
         <span>{error.message}</span>
       </div>
       {onRetry && (
-        <button className="btn" onClick={onRetry}>
+        <button type="button" className="btn" onClick={onRetry}>
           Try again
         </button>
       )}
       {error.detail && (
         <>
-          <button className="btn-ghost" onClick={() => setShowDetail(!showDetail)}>
+          <button type="button" className="btn-ghost" onClick={() => setShowDetail(!showDetail)}>
             {showDetail ? "Hide details" : "Show details"}
           </button>
           {showDetail && <pre className="error-detail">{error.detail}</pre>}

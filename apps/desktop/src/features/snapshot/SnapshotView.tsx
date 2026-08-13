@@ -3,12 +3,12 @@
 // markers come from the commit's own changes; the tree itself is
 // content-addressed. The working-tree frame browses the index.
 
+import { Skeleton } from "../../components/States";
 import { getCommitDetail } from "../../lib/dataCaches";
 import { useData } from "../../lib/useData";
 import { frameCommit, frameSha, useReplay } from "../../stores/replay";
 import { FileTree } from "./FileTree";
 import { FileViewer } from "./FileViewer";
-import { Skeleton } from "../../components/States";
 
 export function SnapshotView() {
   const repo = useReplay((s) => s.repo);
@@ -22,19 +22,17 @@ export function SnapshotView() {
   const sha = range ? frameSha(range, index, hasWorkingTree) : null;
 
   // File changes drive the appeared/vanished markers; a base frame has none.
-  const detail = useData(
-    commit && repo && !isWtFrame ? `${repo.id}|${commit.sha}|${mergeParent}` : null,
-    () => getCommitDetail(repo!.id, commit!.sha, commit!.parents.length > 1 ? mergeParent : null),
-  );
+  const detail = useData(commit && repo && !isWtFrame ? `${repo.id}|${commit.sha}|${mergeParent}` : null, () => {
+    // The key guarantees repo and commit are set whenever the loader runs.
+    if (!repo || !commit) throw new Error("unreachable: detail key requires repo and commit");
+    return getCommitDetail(repo.id, commit.sha, commit.parents.length > 1 ? mergeParent : null);
+  });
 
   if (!repo || !range || !sha) return null;
 
-  const changes = isWtFrame ? wtFrame?.files ?? [] : detail.data?.files ?? [];
-  const title = index === 0
-    ? "Repository at base"
-    : isWtFrame
-      ? "Repository in the working tree"
-      : "Repository after this commit";
+  const changes = isWtFrame ? (wtFrame?.files ?? []) : (detail.data?.files ?? []);
+  const title =
+    index === 0 ? "Repository at base" : isWtFrame ? "Repository in the working tree" : "Repository after this commit";
 
   return (
     <div className="view-snapshot">

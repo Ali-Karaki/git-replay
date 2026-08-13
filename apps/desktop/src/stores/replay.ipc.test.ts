@@ -29,25 +29,53 @@ vi.mock("../lib/ipc", () => ({
 }));
 
 import { api } from "../lib/ipc";
-import { frameCount, useReplay } from "./replay";
 import type { ReplayRange } from "../lib/types";
+import { frameCount, useReplay } from "./replay";
 
 const mocked = vi.mocked(api, true);
 
 const repoInfo = { id: 7, path: "C:/repos/demo", defaultBranch: "main", headSha: "abc" };
 const range: ReplayRange = {
-  baseSha: "base", baseTs: 0, headSha: "abc",
+  baseSha: "base",
+  baseTs: 0,
+  headSha: "abc",
   commits: [
-    { sha: "c1", parents: ["base"], subject: "one", body: "", author: { name: "a", email: "a" }, committer: { name: "a", email: "a" }, authorTs: 1, commitTs: 1 },
-    { sha: "c2", parents: ["c1"], subject: "two", body: "", author: { name: "a", email: "a" }, committer: { name: "a", email: "a" }, authorTs: 2, commitTs: 2 },
+    {
+      sha: "c1",
+      parents: ["base"],
+      subject: "one",
+      body: "",
+      author: { name: "a", email: "a" },
+      committer: { name: "a", email: "a" },
+      authorTs: 1,
+      commitTs: 1,
+    },
+    {
+      sha: "c2",
+      parents: ["c1"],
+      subject: "two",
+      body: "",
+      author: { name: "a", email: "a" },
+      committer: { name: "a", email: "a" },
+      authorTs: 2,
+      commitTs: 2,
+    },
   ],
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   useReplay.setState({
-    repo: null, range: null, branches: [], tags: [], headState: null,
-    error: null, errorDetail: null, busy: false, recentRepos: [], session: null,
+    repo: null,
+    range: null,
+    branches: [],
+    tags: [],
+    headState: null,
+    error: null,
+    errorDetail: null,
+    busy: false,
+    recentRepos: [],
+    session: null,
   });
 });
 

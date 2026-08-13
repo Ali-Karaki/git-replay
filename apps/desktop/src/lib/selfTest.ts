@@ -5,11 +5,11 @@
 // Results render as an overlay and are persisted via the engine.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api } from "./ipc";
-import { getCommitDetail } from "./dataCaches";
 import { suggestInitialMode } from "../features/repository/RangeSetup";
 import { useChat } from "../stores/chat";
 import { useReplay } from "../stores/replay";
+import { getCommitDetail } from "./dataCaches";
+import { api } from "./ipc";
 
 interface TestResult {
   name: string;
@@ -74,8 +74,10 @@ function clickByText(selector: string, text: string): boolean {
 function setInput(selector: string, value: string): boolean {
   const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
   if (!el) return false;
-  const proto = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, "value")!.set!;
+  const proto =
+    el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+  if (!setter) return false;
   setter.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
   return true;
@@ -88,13 +90,15 @@ function pressKey(key: string, opts: KeyboardEventInit = {}) {
 function setSelect(selector: string, value: string): boolean {
   const el = document.querySelector<HTMLSelectElement>(selector);
   if (!el) return false;
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")!.set!;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+  if (!setter) return false;
   setter.call(el, value);
   el.dispatchEvent(new Event("change", { bubbles: true }));
   return true;
 }
 
-async function step(name: string, fn: () => Promise<boolean | void>): Promise<void> {
+/** Steps pass unless they explicitly return false. */
+async function step(name: string, fn: () => unknown | Promise<unknown>): Promise<void> {
   try {
     const ok = (await fn()) !== false;
     record(name, ok);
@@ -130,7 +134,12 @@ export async function runSelfTest(): Promise<void> {
   // Sidebar: view navigation.
   await step("A6 all four sidebar views switch views", async () => {
     useReplay.getState().setIndex(1); // step view renders its container only past the base frame
-    for (const [item, cls] of [[".sidebar-item:nth-child(1)", ".view-step"], [".sidebar-item:nth-child(2)", ".view-snapshot"], [".sidebar-item:nth-child(3)", ".view-evolution"], [".sidebar-item:nth-child(4)", ".map-view"]] as const) {
+    for (const [item, cls] of [
+      [".sidebar-item:nth-child(1)", ".view-step"],
+      [".sidebar-item:nth-child(2)", ".view-snapshot"],
+      [".sidebar-item:nth-child(3)", ".view-evolution"],
+      [".sidebar-item:nth-child(4)", ".map-view"],
+    ] as const) {
       if (!click(item)) return false;
       if (!(await waitFor(cls, 4000))) return false;
     }
@@ -144,8 +153,11 @@ export async function runSelfTest(): Promise<void> {
     return (await waitFor(".commit-subject")) && (await waitFor(".file-row"));
   });
   await step("A8 select a file → diff renders with real hunk headers", async () => {
-    const commit = useReplay.getState().range!.commits[0];
-    const detail = await getCommitDetail(useReplay.getState().repo!.id, commit.sha, null);
+    const range = useReplay.getState().range;
+    const repo = useReplay.getState().repo;
+    if (!range || !repo) return false;
+    const commit = range.commits[0];
+    const detail = await getCommitDetail(repo.id, commit.sha, null);
     const file = detail.files.find((f) => !f.binary);
     if (!file) return false;
     useReplay.getState().setSelectedFile(file.newPath);
@@ -220,7 +232,13 @@ export async function runSelfTest(): Promise<void> {
     const legend = document.querySelector(".map-legend")?.textContent ?? "";
     const canvas = document.querySelector<HTMLElement>(".map-canvas");
     if (!canvas) return false;
-    canvas.dispatchEvent(new MouseEvent("mousemove", { clientX: canvas.getBoundingClientRect().left + 260, clientY: canvas.getBoundingClientRect().top + 40, bubbles: true }));
+    canvas.dispatchEvent(
+      new MouseEvent("mousemove", {
+        clientX: canvas.getBoundingClientRect().left + 260,
+        clientY: canvas.getBoundingClientRect().top + 40,
+        bubbles: true,
+      }),
+    );
     return legend.includes("created") && legend.includes("deleted");
   });
 
@@ -274,7 +292,7 @@ export async function runSelfTest(): Promise<void> {
     pressKey(" ");
     pressKey("End");
     await wait(80);
-    const end = useReplay.getState().index === useReplay.getState().range!.commits.length;
+    const end = useReplay.getState().index === (useReplay.getState().range?.commits.length ?? -1);
     pressKey("Home");
     await wait(80);
     const home = useReplay.getState().index === 0;
@@ -312,7 +330,9 @@ export async function runSelfTest(): Promise<void> {
 
   // Empty replay explanation.
   await step("A22 empty range shows an explanation, not a dead workspace", async () => {
-    await useReplay.getState().configureRange(useReplay.getState().repo!.headSha, useReplay.getState().repo!.headSha, false, false);
+    const repo = useReplay.getState().repo;
+    if (!repo) return false;
+    await useReplay.getState().configureRange(repo.headSha, repo.headSha, false, false);
     const ok = await waitFor(".empty-state", 4000);
     const text = document.querySelector(".empty-state")?.textContent ?? "";
     const explain = text.includes("no commits") || text.includes("same commit");
@@ -361,7 +381,8 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B3 merge commit: badge + parent switcher updates files", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.parents.length > 1);
       if (idx < 0) return false;
       useReplay.getState().setView("step");
@@ -376,13 +397,16 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B4 rename commit shows move display", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.subject.includes("move service"));
       if (idx < 0) throw new Error("rename commit not in range");
       useReplay.getState().setIndex(idx + 1);
       // Wait for THIS commit's content, not rows left over from the previous frame.
       if (!(await waitForText(".commit-subject", "move service", 5000))) {
-        throw new Error(`commit header never showed the rename subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+        throw new Error(
+          `commit header never showed the rename subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`,
+        );
       }
       const text = [...document.querySelectorAll(".file-row")].map((e) => e.textContent ?? "").join(" | ");
       if (!text.includes("→")) throw new Error(`no move arrow in rows: ${text}`);
@@ -390,12 +414,15 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B5 binary commit shows a binary notice", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.subject.includes("add assets"));
       if (idx < 0) throw new Error("assets commit not in range");
       useReplay.getState().setIndex(idx + 1);
       if (!(await waitForText(".commit-subject", "add assets", 5000))) {
-        throw new Error(`header never showed the assets subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+        throw new Error(
+          `header never showed the assets subject; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`,
+        );
       }
       const rows = [...document.querySelectorAll(".file-row-name")].map((e) => e.textContent ?? "");
       const binRow = rows.find((t) => t.includes("logo.bin"));
@@ -409,12 +436,15 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B6 empty commit shows the no-changes state", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.subject.includes("checkpoint"));
       if (idx < 0) throw new Error("checkpoint commit not in range");
       useReplay.getState().setIndex(idx + 1);
       if (!(await waitForText(".commit-subject", "checkpoint", 5000))) {
-        throw new Error(`header never showed checkpoint; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`);
+        throw new Error(
+          `header never showed checkpoint; got: ${document.querySelector(".commit-subject")?.textContent ?? "none"}`,
+        );
       }
       const text = document.querySelector(".changed-files")?.textContent ?? "";
       if (!text.includes("No file changes")) throw new Error(`changed files text: ${text.slice(0, 200)}`);
@@ -422,7 +452,8 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B7 large generated diff virtualizes a 1200-line file", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.subject.includes("generate constants"));
       if (idx < 0) return false;
       useReplay.getState().setIndex(idx + 1);
@@ -436,7 +467,9 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B8 working-tree frame: header, changed list, untracked file", async () => {
-      useReplay.getState().setIndex(useReplay.getState().range!.commits.length + 1);
+      const range = useReplay.getState().range;
+      if (!range) return false;
+      useReplay.getState().setIndex(range.commits.length + 1);
       if (!(await waitFor(".commit-no.wt"))) return false;
       const rows = [...document.querySelectorAll(".file-row-name")].map((e) => e.textContent ?? "");
       return rows.some((t) => t.includes("scratch-notes.txt")) && rows.some((t) => t.includes("queue.ts"));
@@ -450,7 +483,8 @@ export async function runSelfTest(): Promise<void> {
     });
 
     await step("B9b symlink and submodule entries render notices", async () => {
-      const range = useReplay.getState().range!;
+      const range = useReplay.getState().range;
+      if (!range) return false;
       const idx = range.commits.findIndex((c) => c.subject.includes("symlink and submodule"));
       if (idx < 0) throw new Error("symlink/submodule commit not in range");
       useReplay.getState().setIndex(idx + 1);
@@ -464,11 +498,15 @@ export async function runSelfTest(): Promise<void> {
       }
       useReplay.getState().setSelectedFile("link.txt");
       if (!(await waitForText(".binary-note", "Symbolic link", 5000))) {
-        throw new Error(`no symlink notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`);
+        throw new Error(
+          `no symlink notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`,
+        );
       }
       useReplay.getState().setSelectedFile("vendor/lib");
       if (!(await waitForText(".binary-note", "Submodule", 5000))) {
-        throw new Error(`no submodule notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`);
+        throw new Error(
+          `no submodule notice; got: ${document.querySelector(".snapshot-content")?.textContent?.slice(0, 200)}`,
+        );
       }
       return true;
     });
@@ -533,7 +571,9 @@ export async function runSelfTest(): Promise<void> {
       await wait(100);
       clickByText(".chat-input-actions .btn", "Send");
       if (!(await waitForText(".chat-messages", "No API key", 8000))) {
-        throw new Error(`no friendly key error; messages: ${document.querySelector(".chat-messages")?.textContent?.slice(0, 200)}`);
+        throw new Error(
+          `no friendly key error; messages: ${document.querySelector(".chat-messages")?.textContent?.slice(0, 200)}`,
+        );
       }
       const noCrash = document.querySelector(".crash-panel") === null;
       click(".chat-header-actions .btn-icon:last-child"); // close
@@ -588,7 +628,8 @@ export async function runSelfTest(): Promise<void> {
         const sendDisabled =
           (document.querySelector(".chat-input-actions .btn-primary") as HTMLButtonElement | null)?.disabled ?? false;
         const failures = [
-          !gotError && `gotError=false (messages: ${(document.querySelector(".chat-messages")?.textContent ?? "").slice(-200)})`,
+          !gotError &&
+            `gotError=false (messages: ${(document.querySelector(".chat-messages")?.textContent ?? "").slice(-200)})`,
           !noCrash && "crash panel present",
           hasKeyAfter && "key still present after remove",
           !sendDisabled && "Send not disabled after remove",
@@ -627,7 +668,11 @@ export async function runSelfTest(): Promise<void> {
         // environment condition, not an app regression — note and skip.
         // Cover the common phrasings: our engine's friendly messages plus
         // raw 401/unauthorized/invalid-key wording from any provider.
-        if (/401|unauthorized|invalid api key|api key.*(invalid|rejected)|rejected|provider returned an error|could not reach/i.test(text)) {
+        if (
+          /401|unauthorized|invalid api key|api key.*(invalid|rejected)|rejected|provider returned an error|could not reach/i.test(
+            text,
+          )
+        ) {
           record("B14 note", true, `skipped — the configured key was rejected by the provider (${text.slice(0, 120)})`);
           click(".chat-header-actions .btn-icon:last-child");
           return true;
@@ -651,7 +696,11 @@ export async function runSelfTest(): Promise<void> {
 }
 
 function finish(): void {
-  record("TOTAL", results.every((r) => r.ok), `${results.filter((r) => r.ok).length}/${results.length} steps passed`);
+  record(
+    "TOTAL",
+    results.every((r) => r.ok),
+    `${results.filter((r) => r.ok).length}/${results.length} steps passed`,
+  );
   const passed = results.filter((r) => r.ok).length;
 
   const report = JSON.stringify({ passed, total: results.length, results }, null, 2);
@@ -669,6 +718,6 @@ function renderOverlay(results: TestResult[], passed: number) {
       <ul>${results.map((r) => `<li class="${r.ok ? "ok" : "fail"}"><b>${r.ok ? "✓" : "✗"}</b> ${r.name}${r.detail ? `<span class="dim"> — ${r.detail}</span>` : ""}</li>`).join("")}</ul>
       <button class="btn">Close</button>
     </div>`;
-  overlay.querySelector("button")!.addEventListener("click", () => overlay.remove());
+  overlay.querySelector("button")?.addEventListener("click", () => overlay.remove());
   document.body.appendChild(overlay);
 }

@@ -2,12 +2,12 @@
 // refresh banner. View switching and settings live in the sidebar.
 
 import { useEffect, useState } from "react";
-import { api } from "../../lib/ipc";
+import { BranchIcon, RefreshIcon } from "../../components/Icons";
 import { formatCount } from "../../lib/format";
+import { api } from "../../lib/ipc";
+import type { SnapshotStats } from "../../lib/types";
 import { frameSha, useReplay } from "../../stores/replay";
 import { SearchBar } from "../search/SearchBar";
-import { BranchIcon, RefreshIcon } from "../../components/Icons";
-import type { SnapshotStats } from "../../lib/types";
 
 /** The palette shortcut is Ctrl+K everywhere except macOS (⌘K). */
 const PALETTE_KEY_LABEL = /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
@@ -37,9 +37,17 @@ function RepoStats({ sha, repoId }: { sha: string; repoId: number }) {
   if (!stats) return <span className="stat dim">…</span>;
   return (
     <>
-      <span className="stat" title="Files in the repository at this commit">{formatCount(stats.files)} files</span>
-      <span className="stat" title="Directories">{formatCount(stats.dirs)} dirs</span>
-      {stats.loc !== null && <span className="stat" title="Lines of code (text files)">{formatCount(stats.loc)} LOC</span>}
+      <span className="stat" title="Files in the repository at this commit">
+        {formatCount(stats.files)} files
+      </span>
+      <span className="stat" title="Directories">
+        {formatCount(stats.dirs)} dirs
+      </span>
+      {stats.loc !== null && (
+        <span className="stat" title="Lines of code (text files)">
+          {formatCount(stats.loc)} LOC
+        </span>
+      )}
     </>
   );
 }
@@ -60,7 +68,12 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   return (
     <header className="topbar">
-      <button className="repo-chip" onClick={() => set({ range: null, pr: null })} title="Change replay range">
+      <button
+        type="button"
+        className="repo-chip"
+        onClick={() => set({ range: null, pr: null })}
+        title="Change replay range"
+      >
         <span className="repo-name">{repo?.path.split(/[\\/]/).pop() || "Git Replay"}</span>
         {pr && (
           <span className="dim repo-range" title={pr.title}>
@@ -85,17 +98,28 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
       {range && <SearchBar />}
 
-      <button className="btn-icon palette-trigger" onClick={onOpenPalette} title="Command palette (Ctrl+K)">
+      <button
+        type="button"
+        className="btn-icon palette-trigger"
+        onClick={onOpenPalette}
+        title="Command palette (Ctrl+K)"
+      >
         <span className="palette-trigger-label">{PALETTE_KEY_LABEL}</span>
       </button>
 
       {repoChanged && (
         <div className="repo-changed-banner" role="status">
           <span>Repository changed — new commits or branch switch detected.</span>
-          <button className="btn btn-primary" onClick={() => void refreshRepo()}>
+          <button type="button" className="btn btn-primary" onClick={() => void refreshRepo()}>
             <RefreshIcon size={13} /> Refresh
           </button>
-          <button className="btn-icon" onClick={() => set({ repoChanged: false })} title="Dismiss" aria-label="Dismiss">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => set({ repoChanged: false })}
+            title="Dismiss"
+            aria-label="Dismiss"
+          >
             <span style={{ fontSize: 12 }}>✕</span>
           </button>
         </div>

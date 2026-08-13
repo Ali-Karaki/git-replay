@@ -3,8 +3,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { api } from "../lib/ipc";
 import { buildChatContext } from "../lib/chatContext";
+import { api } from "../lib/ipc";
 import type { ChatMessage } from "../lib/types";
 
 interface ChatState {
@@ -105,7 +105,11 @@ export const useChat = create<ChatState>()(
         const payload = [...history, { role: "user", content: userContent }];
 
         set({
-          messages: [...messages, { role: "user", content: question }, { role: "assistant", content: "" }],
+          messages: [
+            ...messages,
+            { id: crypto.randomUUID(), role: "user", content: question },
+            { id: crypto.randomUUID(), role: "assistant", content: "" },
+          ],
           sending: true,
           pendingId: id,
         });
@@ -134,7 +138,11 @@ export const useChat = create<ChatState>()(
           const messages = [...s.messages];
           const last = messages[messages.length - 1];
           if (last && last.role === "assistant") {
-            messages[messages.length - 1] = { ...last, content: error ? last.content || "" : last.content, error: !!error };
+            messages[messages.length - 1] = {
+              ...last,
+              content: error ? last.content || "" : last.content,
+              error: !!error,
+            };
           }
           if (error && last) {
             // Surface the error as text in the bubble.
@@ -151,6 +159,21 @@ export const useChat = create<ChatState>()(
     {
       name: "git-replay-chat",
       partialize: (s) => ({ messages: s.messages.slice(-40), model: s.model }),
+      // Messages persisted before ids existed get one on rehydrate so list
+      // keys stay stable.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as { messages?: ChatMessage[]; model?: string };
+        return {
+          ...current,
+          ...p,
+          messages: (p.messages ?? []).map((m) => ({
+            id: m.id ?? crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            error: m.error,
+          })),
+        };
+      },
     },
   ),
 );

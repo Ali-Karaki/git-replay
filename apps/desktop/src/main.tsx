@@ -28,7 +28,10 @@ if (import.meta.env.DEV && import.meta.env.VITE_SELFTEST === "1") {
   const origError = console.error.bind(console);
   console.error = (...args: unknown[]) => {
     (window as unknown as { __selftestErrors: string[] }).__selftestErrors.push(
-      `console.error: ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ").slice(0, 1000)}`,
+      `console.error: ${args
+        .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
+        .join(" ")
+        .slice(0, 1000)}`,
     );
     origError(...args);
   };

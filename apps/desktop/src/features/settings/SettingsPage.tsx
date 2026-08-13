@@ -2,12 +2,12 @@
 // reset, and the keyboard reference.
 
 import { useEffect, useState } from "react";
-import { api } from "../../lib/ipc";
-import { useReplay, type Theme } from "../../stores/replay";
-import type { CacheInfo } from "../../lib/types";
-import { formatBytes } from "../../lib/format";
 import { RefreshIcon } from "../../components/Icons";
+import { formatBytes } from "../../lib/format";
+import { api } from "../../lib/ipc";
 import { SHORTCUTS } from "../../lib/shortcuts";
+import type { CacheInfo } from "../../lib/types";
+import { type Theme, useReplay } from "../../stores/replay";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -38,7 +38,10 @@ export function SettingsPage() {
   const [cacheNote, setCacheNote] = useState<string | null>(null);
 
   const loadCache = () => {
-    api.getCacheInfo().then(setCache).catch(() => setCache(null));
+    api
+      .getCacheInfo()
+      .then(setCache)
+      .catch(() => setCache(null));
   };
   useEffect(loadCache, []);
 
@@ -65,14 +68,21 @@ export function SettingsPage() {
     <div className="page">
       <div className="page-header">
         <h1>Settings</h1>
-        <button className="btn" onClick={() => s.setScreen("replay")}>Back</button>
+        <button type="button" className="btn" onClick={() => s.setScreen("replay")}>
+          Back
+        </button>
       </div>
       <div className="page-body">
         <Section title="Appearance">
           <Row label="Theme">
             <div className="segmented">
               {(["system", "light", "dark"] as Theme[]).map((t) => (
-                <button key={t} className={`chip big ${s.theme === t ? "on" : ""}`} onClick={() => s.setTheme(t)}>
+                <button
+                  type="button"
+                  key={t}
+                  className={`chip big ${s.theme === t ? "on" : ""}`}
+                  onClick={() => s.setTheme(t)}
+                >
                   {t}
                 </button>
               ))}
@@ -88,8 +98,15 @@ export function SettingsPage() {
               <option value={2}>2×</option>
             </select>
           </Row>
-          <Row label="Adaptive playback" hint="Small commits flash by, substantial ones pause (stats from the prefetch cache)">
-            <button className={`chip ${s.adaptivePlayback ? "on" : ""}`} onClick={() => set({ adaptivePlayback: !s.adaptivePlayback })}>
+          <Row
+            label="Adaptive playback"
+            hint="Small commits flash by, substantial ones pause (stats from the prefetch cache)"
+          >
+            <button
+              type="button"
+              className={`chip ${s.adaptivePlayback ? "on" : ""}`}
+              onClick={() => set({ adaptivePlayback: !s.adaptivePlayback })}
+            >
               {s.adaptivePlayback ? "enabled" : "disabled"}
             </button>
           </Row>
@@ -98,17 +115,40 @@ export function SettingsPage() {
         <Section title="Diff view">
           <Row label="Default layout">
             <div className="segmented">
-              <button className={`chip big ${s.diffMode === "unified" ? "on" : ""}`} onClick={() => set({ diffMode: "unified" })}>unified</button>
-              <button className={`chip big ${s.diffMode === "split" ? "on" : ""}`} onClick={() => set({ diffMode: "split" })}>split</button>
+              <button
+                type="button"
+                className={`chip big ${s.diffMode === "unified" ? "on" : ""}`}
+                onClick={() => set({ diffMode: "unified" })}
+              >
+                unified
+              </button>
+              <button
+                type="button"
+                className={`chip big ${s.diffMode === "split" ? "on" : ""}`}
+                onClick={() => set({ diffMode: "split" })}
+              >
+                split
+              </button>
             </div>
           </Row>
-          <Row label="Hide generated files by default" hint="Lockfiles, build output, minified files — always toggleable in the Step view">
-            <button className={`chip ${s.hideGenerated ? "on" : ""}`} onClick={() => set({ hideGenerated: !s.hideGenerated })}>
+          <Row
+            label="Hide generated files by default"
+            hint="Lockfiles, build output, minified files — always toggleable in the Step view"
+          >
+            <button
+              type="button"
+              className={`chip ${s.hideGenerated ? "on" : ""}`}
+              onClick={() => set({ hideGenerated: !s.hideGenerated })}
+            >
               {s.hideGenerated ? "hidden" : "shown"}
             </button>
           </Row>
           <Row label="Hide whitespace-only changes by default">
-            <button className={`chip ${s.hideWhitespaceOnly ? "on" : ""}`} onClick={() => set({ hideWhitespaceOnly: !s.hideWhitespaceOnly })}>
+            <button
+              type="button"
+              className={`chip ${s.hideWhitespaceOnly ? "on" : ""}`}
+              onClick={() => set({ hideWhitespaceOnly: !s.hideWhitespaceOnly })}
+            >
               {s.hideWhitespaceOnly ? "hidden" : "shown"}
             </button>
           </Row>
@@ -116,7 +156,11 @@ export function SettingsPage() {
 
         <Section title="Timeline">
           <Row label="Group commits into chapters" hint="An alternate presentation — raw commits always stay visible">
-            <button className={`chip ${s.groupChapters ? "on" : ""}`} onClick={() => set({ groupChapters: !s.groupChapters })}>
+            <button
+              type="button"
+              className={`chip ${s.groupChapters ? "on" : ""}`}
+              onClick={() => set({ groupChapters: !s.groupChapters })}
+            >
               {s.groupChapters ? "enabled" : "disabled"}
             </button>
           </Row>
@@ -132,7 +176,7 @@ export function SettingsPage() {
             </span>
           </Row>
           <Row label="Clear cache" hint="Deletes the database; the app rebuilds everything from Git as you browse">
-            <button className="btn" onClick={() => void clearCache()} disabled={clearing}>
+            <button type="button" className="btn" onClick={() => void clearCache()} disabled={clearing}>
               <RefreshIcon size={13} /> {clearing ? "Clearing…" : "Clear cache"}
             </button>
           </Row>
@@ -141,7 +185,9 @@ export function SettingsPage() {
 
         <Section title="Data">
           <Row label="Reset app data" hint="Clears preferences, recent repositories, and the saved session">
-            <button className="btn" onClick={resetData}>Reset</button>
+            <button type="button" className="btn" onClick={resetData}>
+              Reset
+            </button>
           </Row>
         </Section>
 
@@ -158,7 +204,9 @@ export function SettingsPage() {
 
         <Section title="About">
           <Row label="How Git Replay works" hint="Product story, architecture, and principles">
-            <button className="btn" onClick={() => s.setScreen("about")}>Open About</button>
+            <button type="button" className="btn" onClick={() => s.setScreen("about")}>
+              Open About
+            </button>
           </Row>
         </Section>
       </div>

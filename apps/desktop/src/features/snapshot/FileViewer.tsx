@@ -1,27 +1,36 @@
 // File content at a frame: virtualized text with syntax highlighting, images,
 // binary/symlink/submodule notices.
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { getFileAtCommit } from "../../lib/dataCaches";
-import { useData } from "../../lib/useData";
-import { dirname, formatBytes, isLikelyImage } from "../../lib/format";
-import { renderMarkdown } from "../../lib/markdown";
-import { langForPath } from "../../lib/langs";
-import { highlightLines } from "../../lib/highlight";
-import { frameSha, useReplay } from "../../stores/replay";
-import type { FileAtCommit } from "../../lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { HighlightedTokens } from "../../components/Highlighted";
 import { EvolutionIcon, ImageIcon, WarningIcon } from "../../components/Icons";
+import { Markdown } from "../../components/Markdown";
 import { ErrorPanel, Skeleton } from "../../components/States";
+import { getFileAtCommit } from "../../lib/dataCaches";
+import { dirname, formatBytes, isLikelyImage } from "../../lib/format";
+import { highlightLines } from "../../lib/highlight";
+import { langForPath } from "../../lib/langs";
+import type { FileAtCommit } from "../../lib/types";
+import { useData } from "../../lib/useData";
+import { frameSha, useReplay } from "../../stores/replay";
+import type { HighlightToken } from "../../workers/highlight.worker";
 
-function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string; onNavigate: (path: string) => void }) {
+function TextFile({
+  file,
+  path,
+  onNavigate,
+}: {
+  file: FileAtCommit;
+  path: string;
+  onNavigate: (path: string) => void;
+}) {
   const lines = useMemo(() => (file.content ?? "").split("\n"), [file.content]);
   const lang = langForPath(path);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [wrap, setWrap] = useState(false);
   const [preview, setPreview] = useState(false);
   const isMarkdown = /\.(md|markdown|mdown)$/i.test(path);
-  const previewHtml = useMemo(() => (isMarkdown ? renderMarkdown(file.content ?? "") : ""), [isMarkdown, file.content]);
 
   const virtualizer = useVirtualizer({
     count: lines.length,
@@ -33,7 +42,7 @@ function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string
   const start = items[0]?.index ?? 0;
   const end = (items.at(-1)?.index ?? 0) + 1;
 
-  const [html, setHtml] = useState<Map<number, string>>(new Map());
+  const [highlighted, setHighlighted] = useState<Map<number, HighlightToken[]>>(new Map());
   const windowKey = `${start}:${end}`;
   const lastKey = useRef("");
   useEffect(() => {
@@ -42,9 +51,11 @@ function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string
     let cancelled = false;
     highlightLines(lang, lines.slice(start, end)).then((out) => {
       if (cancelled) return;
-      const m = new Map<number, string>();
-      out.forEach((h, i) => m.set(start + i, h));
-      setHtml(m);
+      const m = new Map<number, HighlightToken[]>();
+      out.forEach((tokens, i) => {
+        m.set(start + i, tokens);
+      });
+      setHighlighted(m);
     });
     return () => {
       cancelled = true;
@@ -54,16 +65,11 @@ function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string
   if (preview && isMarkdown) {
     // Time-aware links: a relative link navigates the file viewer to that
     // path AT THE SAME COMMIT — the whole point of the product.
-    const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      const anchor = (e.target as HTMLElement).closest("a");
-      if (!anchor) return;
-      const href = anchor.getAttribute("href") ?? "";
-      if (/^https?:/i.test(href) || href.startsWith("#")) return; // external/anchors behave normally
-      e.preventDefault();
+    const resolveLink = (href: string) => {
       const base = dirname(path);
       const resolved = href.startsWith("/")
         ? href.slice(1)
-        : `${base ? base + "/" : ""}${href}`.replace(/\/\.\//g, "/");
+        : `${base ? `${base}/` : ""}${href}`.replace(/\/\.\//g, "/");
       onNavigate(resolved.split("#")[0]);
     };
     return (
@@ -72,9 +78,13 @@ function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string
           <span className="diff-path">{path}</span>
           <span className="dim">{formatBytes(file.size)}</span>
           <span className="spacer" />
-          <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>preview</button>
+          <button type="button" className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>
+            preview
+          </button>
         </div>
-        <div className="md-preview" onClick={onPreviewClick} dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        <div className="md-preview">
+          <Markdown src={file.content ?? ""} onNavigate={resolveLink} />
+        </div>
       </div>
     );
   }
@@ -83,22 +93,30 @@ function TextFile({ file, path, onNavigate }: { file: FileAtCommit; path: string
     <div className="file-viewer">
       <div className="diff-toolbar">
         <span className="diff-path">{path}</span>
-        <span className="dim">{formatBytes(file.size)} · {lines.length} lines</span>
+        <span className="dim">
+          {formatBytes(file.size)} · {lines.length} lines
+        </span>
         <span className="spacer" />
         {isMarkdown && (
-          <button className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>preview</button>
+          <button type="button" className={`chip ${preview ? "on" : ""}`} onClick={() => setPreview(!preview)}>
+            preview
+          </button>
         )}
-        <button className={`chip ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>wrap</button>
+        <button type="button" className={`chip ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>
+          wrap
+        </button>
       </div>
       <div ref={parentRef} className={`file-scroll ${wrap ? "wrap" : ""}`}>
         <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {items.map((vi) => {
-            const content = html.get(vi.index) ?? " ";
+            const tokens = highlighted.get(vi.index) ?? [{ cls: [], text: " " }];
             return (
               <div key={vi.key} className="diff-line ctx" style={{ transform: `translateY(${vi.start}px)` }}>
                 <span className="diff-ln old">{vi.index + 1}</span>
                 <span className="diff-code">
-                  <span className="diff-code-text" dangerouslySetInnerHTML={{ __html: content }} />
+                  <span className="diff-code-text">
+                    <HighlightedTokens tokens={tokens} />
+                  </span>
                 </span>
               </div>
             );
@@ -134,10 +152,11 @@ export function FileViewer() {
   const setView = useReplay((s) => s.setView);
   const sha = range ? frameSha(range, index, hasWorkingTree) : null;
 
-  const file = useData(
-    repo && sha && selectedFile ? `${repo.id}|${sha}|${selectedFile}` : null,
-    () => getFileAtCommit(repo!.id, sha!, selectedFile!),
-  );
+  const file = useData(repo && sha && selectedFile ? `${repo.id}|${sha}|${selectedFile}` : null, () => {
+    // The key guarantees repo, sha, and selectedFile are set whenever the loader runs.
+    if (!repo || !sha || !selectedFile) throw new Error("unreachable: file key requires repo/sha/file");
+    return getFileAtCommit(repo.id, sha, selectedFile);
+  });
 
   if (!selectedFile) {
     return <div className="empty-mini">Select a file to browse its content at this point in time.</div>;
@@ -168,7 +187,9 @@ export function FileViewer() {
           <WarningIcon size={16} />
           <div>
             <strong>Symbolic link</strong>
-            <p>Points to <code>{f.symlinkTarget}</code></p>
+            <p>
+              Points to <code>{f.symlinkTarget}</code>
+            </p>
           </div>
         </div>
       )}
@@ -177,12 +198,19 @@ export function FileViewer() {
           <WarningIcon size={16} />
           <div>
             <strong>Submodule</strong>
-            <p>Recorded commit: <code>{f.submoduleSha?.slice(0, 12)}</code></p>
+            <p>
+              Recorded commit: <code>{f.submoduleSha?.slice(0, 12)}</code>
+            </p>
           </div>
         </div>
       )}
       {(f.kind === "text" || f.kind === "binary") && (
-        <button className="btn-ghost evolution-cta" onClick={() => setView("evolution")} title="Follow this file's evolution across the replay">
+        <button
+          type="button"
+          className="btn-ghost evolution-cta"
+          onClick={() => setView("evolution")}
+          title="Follow this file's evolution across the replay"
+        >
           <EvolutionIcon size={13} /> File evolution
         </button>
       )}
