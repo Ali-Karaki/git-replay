@@ -67,8 +67,10 @@ Prerequisites: Node.js 20+, Rust stable (MSVC toolchain on Windows), system Git.
 cd apps/desktop
 npm install
 npm run tauri dev        # run the app
+npm run tauri build      # production bundle (installers)
 npm run build            # typecheck + build the frontend
-cd src-tauri && cargo test   # engine tests against programmatic fixture repos
+npm test                 # UI tests (vitest: store, diff, chapters, markdown)
+cd src-tauri && cargo test   # engine tests (44) against programmatic fixture repos
 ```
 
 ### Try it
