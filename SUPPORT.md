@@ -1,7 +1,6 @@
 # Support
 
-- **Questions & ideas** → [GitHub Discussions](https://github.com/<owner>/git_replay/discussions)
-  (link active after the public launch).
+- **Questions & ideas** → [GitHub Discussions](https://github.com/Ali-Karaki/git-replay/discussions).
 - **Bugs** → open an issue using the bug report template; include your git
   version (`git --version`) and OS.
 - **Feature requests** → the feature request template.

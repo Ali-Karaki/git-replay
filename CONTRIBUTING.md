@@ -24,7 +24,7 @@ On Linux you also need `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`,
 
 ```sh
 git clone <your-fork-url>
-cd git_replay
+cd git-replay
 cd apps/desktop
 npm install
 npm run tauri dev          # run the app
