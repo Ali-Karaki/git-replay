@@ -86,9 +86,35 @@ function BlockNode({ block, onNavigate }: { block: Block; onNavigate?: (href: st
         </Tag>
       );
     }
+    case "table":
+      return (
+        <table>
+          <thead>
+            <tr>
+              {block.header.map((cell) => (
+                <th key={cell.id}>
+                  <InlineNodes nodes={cell.c} onNavigate={onNavigate} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row) => (
+              <tr key={row.id}>
+                {row.cells.map((cell) => (
+                  <td key={cell.id}>
+                    <InlineNodes nodes={cell.c} onNavigate={onNavigate} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
     case "pre":
       return (
         <pre>
+          {block.lang && <span className="md-fence-lang">{block.lang}</span>}
           <code>{block.code}</code>
         </pre>
       );

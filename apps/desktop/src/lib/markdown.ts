@@ -18,7 +18,13 @@ export type Block =
   | { id: number; t: "hr" }
   | { id: number; t: "quote"; c: Inline[] }
   | { id: number; t: "list"; ordered: boolean; items: Array<{ id: number; c: Inline[] }> }
-  | { id: number; t: "pre"; code: string };
+  | {
+      id: number;
+      t: "table";
+      header: Array<{ id: number; c: Inline[] }>;
+      rows: Array<{ id: number; cells: Array<{ id: number; c: Inline[] }> }>;
+    }
+  | { id: number; t: "pre"; lang: string | null; code: string };
 
 type NextId = () => number;
 
@@ -95,6 +101,7 @@ export function parseMarkdown(src: string): Block[] {
   let list: "ul" | "ol" | null = null;
   let listItems: Array<{ id: number; c: Inline[] }> = [];
   let fence: string | null = null;
+  let fenceLang: string | null = null;
   let code: string[] = [];
   let para: string[] = [];
 
@@ -112,24 +119,54 @@ export function parseMarkdown(src: string): Block[] {
     }
   };
 
-  for (const raw of lines) {
+  for (let li = 0; li < lines.length; li++) {
+    const raw = lines[li];
     // Fenced code.
     if (fence) {
       if (raw.trim().startsWith(fence)) {
-        blocks.push({ id: nextId(), t: "pre", code: code.join("\n") });
+        blocks.push({ id: nextId(), t: "pre", lang: fenceLang, code: code.join("\n") });
         code = [];
         fence = null;
+        fenceLang = null;
       } else {
         code.push(raw);
       }
       continue;
     }
-    const fenceMatch = raw.match(/^\s*(```|~~~)/);
+    const fenceMatch = raw.match(/^\s*(```|~~~)(.*)$/);
     if (fenceMatch) {
       flushPara();
       closeList();
       fence = fenceMatch[1];
+      fenceLang = fenceMatch[2].trim() || null;
       continue;
+    }
+    // GFM table: a header row, a |---| separator, then body rows — the body
+    // rows are consumed here so the main loop never re-reads them.
+    const tableHeader = raw.match(/^\s*\|(.+)\|\s*$/);
+    if (tableHeader) {
+      const next = lines[li + 1] ?? "";
+      const isSeparator = /^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?\|?\s*$/.test(next);
+      if (isSeparator) {
+        flushPara();
+        closeList();
+        const cells = (row: string) =>
+          row
+            .replace(/^\s*\||\|\s*$/g, "")
+            .split("|")
+            .map((c) => ({ id: nextId(), c: parseInline(c.trim(), nextId) }));
+        const header = cells(tableHeader[1]);
+        const rows: Array<{ id: number; cells: Array<{ id: number; c: Inline[] }> }> = [];
+        let j = li + 2;
+        for (; j < lines.length; j++) {
+          const m = lines[j].match(/^\s*\|(.+)\|\s*$/);
+          if (!m) break;
+          rows.push({ id: nextId(), cells: cells(m[1]) });
+        }
+        li = j - 1; // resume after the table
+        blocks.push({ id: nextId(), t: "table", header, rows });
+        continue;
+      }
     }
     const heading = raw.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
@@ -177,7 +214,7 @@ export function parseMarkdown(src: string): Block[] {
     }
     para.push(raw);
   }
-  if (fence) blocks.push({ id: nextId(), t: "pre", code: code.join("\n") });
+  if (fence) blocks.push({ id: nextId(), t: "pre", lang: fenceLang, code: code.join("\n") });
   flushPara();
   closeList();
   return blocks;

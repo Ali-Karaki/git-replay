@@ -46,6 +46,12 @@ export function timeAgo(ts: number): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
+/** Windows paths arrive from the engine with the NT device prefix
+ *  (`\\?\C:\...`) — strip it for anything user-facing. */
+export function displayPath(path: string): string {
+  return path.replace(/^\\\\\?\\/, "");
+}
+
 export function basename(path: string): string {
   const i = path.lastIndexOf("/");
   return i === -1 ? path : path.slice(i + 1);

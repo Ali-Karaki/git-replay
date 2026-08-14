@@ -899,6 +899,33 @@
   font-size: 11.5px;
   color: var(--text-dim);
 }
+.md-preview table,
+.chat-md table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+.md-preview th,
+.md-preview td,
+.chat-md th,
+.chat-md td {
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  text-align: left;
+}
+.md-preview th,
+.chat-md th {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+.md-preview .md-fence-lang,
+.chat-md .md-fence-lang {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
 .cheatsheet {
   padding: 14px 16px 12px;
 }

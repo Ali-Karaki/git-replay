@@ -19,21 +19,21 @@ interface Cell {
   change: FileChange;
 }
 
-function statusColor(status: string, mode: string): string {
+function statusColor(status: string): string {
   const root = document.documentElement;
   const v = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
   switch (status) {
     case "added":
       return v("--add");
     case "modified":
-      return mode === "dark" ? v("--accent") : v("--accent");
+      return v("--accent");
     case "deleted":
       return v("--del");
     case "renamed":
     case "copied":
       return v("--rename");
     case "untracked":
-      return "#0ea5a5";
+      return v("--rename");
     default:
       return v("--text-faint");
   }
@@ -186,7 +186,7 @@ export function ChangeMap() {
     const colorOf = (status: string) => {
       let c = colors.get(status);
       if (!c) {
-        c = statusColor(status, css("--theme-mode", "light"));
+        c = statusColor(status);
         colors.set(status, c);
       }
       return c;
@@ -337,16 +337,16 @@ export function ChangeMap() {
       </div>
       <div className="map-legend dim">
         <span>
-          <i className="dot" style={{ background: statusColor("added", "light") }} /> created
+          <i className="dot" style={{ background: statusColor("added") }} /> created
         </span>
         <span>
           <i className="dot" style={{ background: "var(--accent)" }} /> modified
         </span>
         <span>
-          <i className="dot" style={{ background: statusColor("deleted", "light") }} /> deleted
+          <i className="dot" style={{ background: statusColor("deleted") }} /> deleted
         </span>
         <span>
-          <i className="dot" style={{ background: statusColor("renamed", "light") }} /> moved/copied
+          <i className="dot" style={{ background: statusColor("renamed") }} /> moved/copied
         </span>
         <span>
           <i className="dot" style={{ background: "#0ea5a5" }} /> untracked

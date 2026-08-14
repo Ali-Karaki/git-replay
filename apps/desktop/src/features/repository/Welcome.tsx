@@ -4,6 +4,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { BranchIcon, ClockIcon, FolderIcon } from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
+import { displayPath } from "../../lib/format";
 import { useReplay } from "../../stores/replay";
 
 export function Welcome() {
@@ -99,7 +100,7 @@ export function Welcome() {
             </div>
             {recentRepos.map((p) => (
               <button type="button" key={p} className="recent-row" onClick={() => void openRepo(p)} disabled={busy}>
-                <span className="recent-path">{p}</span>
+                <span className="recent-path">{displayPath(p)}</span>
               </button>
             ))}
           </div>

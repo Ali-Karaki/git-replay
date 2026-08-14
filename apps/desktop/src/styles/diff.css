@@ -420,6 +420,15 @@ mark.wd {
   overflow: auto;
   min-height: 0;
 }
+/* Right-edge gutter: rows must not run under the scrollbar. */
+.diff-scroll .diff-line,
+.diff-scroll .diff-hunk-row,
+.file-scroll .diff-line {
+  right: 12px;
+}
+.map-scroll {
+  padding: 0 12px 12px 0;
+}
 /* File-viewer rows carry one line number, not the diff's two — the shared
  * three-column diff grid would trap the code in its 54px middle column. */
 .file-scroll .diff-line {

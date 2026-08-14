@@ -31,6 +31,17 @@
   --tl-node: #aab3c2;
   --tl-merge: #7b43d9;
 
+  /* syntax highlighting (light palette) */
+  --hl-keyword: #a626a4;
+  --hl-string: #2f7d46;
+  --hl-number: #986801;
+  --hl-comment: #8b94a3;
+  --hl-title: #3d6be6;
+  --hl-attr: #986801;
+  --hl-builtin: #e45649;
+  --hl-tag: #e45649;
+  --hl-meta: #5c6572;
+
   --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   --sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 
@@ -67,6 +78,17 @@
     --tl-node: #454d5e;
     --tl-merge: #8a5cf6;
 
+    /* syntax highlighting (dark palette — light tokens are unreadable here) */
+    --hl-keyword: #c792ea;
+    --hl-string: #9ece6a;
+    --hl-number: #e0af68;
+    --hl-comment: #6b7484;
+    --hl-title: #7aa2f7;
+    --hl-attr: #e0af68;
+    --hl-builtin: #f7768e;
+    --hl-tag: #f7768e;
+    --hl-meta: #9aa3b2;
+
     --shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
   }
 }
@@ -94,6 +116,18 @@
   --merge: #a371f7;
   --tl-node: #454d5e;
   --tl-merge: #8a5cf6;
+
+  /* syntax highlighting (dark palette) */
+  --hl-keyword: #c792ea;
+  --hl-string: #9ece6a;
+  --hl-number: #e0af68;
+  --hl-comment: #6b7484;
+  --hl-title: #7aa2f7;
+  --hl-attr: #e0af68;
+  --hl-builtin: #f7768e;
+  --hl-tag: #f7768e;
+  --hl-meta: #9aa3b2;
+
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 

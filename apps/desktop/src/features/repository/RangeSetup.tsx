@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BranchIcon, ClockIcon, FolderOpenIcon, PrIcon, SwapIcon, TagIcon } from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
-import { formatDateTime, shortSha } from "../../lib/format";
+import { displayPath, formatDateTime, shortSha } from "../../lib/format";
 import { api } from "../../lib/ipc";
 import type { CommitMeta, PrReplay } from "../../lib/types";
 import { useReplay } from "../../stores/replay";
@@ -181,7 +181,7 @@ export function RangeSetup() {
     <div className="range-setup">
       <div className="range-card">
         <h1>
-          Replay <span className="dim">{repo.path}</span>
+          Replay <span className="dim">{displayPath(repo.path)}</span>
         </h1>
 
         <div className="range-mode-cards" role="tablist">
