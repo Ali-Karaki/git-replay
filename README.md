@@ -3,7 +3,7 @@
 **A development timelapse player — watch how a codebase was built.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/badge/CI-passing-green.svg)](https://github.com/<owner>/git_replay/actions)
+[![CI](https://img.shields.io/badge/CI-passing-green.svg)](https://github.com/Ali-Karaki/git-replay/actions)
 
 Open a repository, pick what to watch (branch, commits, releases, PR, or
 everything), and press Play: each commit becomes a frame. See what changed at
@@ -13,7 +13,7 @@ machine.
 
 ## Install
 
-Download an installer from [GitHub Releases](https://github.com/<owner>/git_replay/releases) —
+Download an installer from [GitHub Releases](https://github.com/Ali-Karaki/git-replay/releases) —
 every `v*` tag is built automatically by CI:
 
 | Platform | Packages |

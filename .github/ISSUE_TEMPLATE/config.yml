@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: 💬 Discussions
-    url: https://github.com/<owner>/git_replay/discussions
+    url: https://github.com/Ali-Karaki/git-replay/discussions
     about: Questions and ideas — start here before opening an issue
   - name: 📖 Architecture docs
-    url: https://github.com/<owner>/git_replay/tree/main/docs
+    url: https://github.com/Ali-Karaki/git-replay/tree/main/docs
     about: How the engine works and why decisions were made (ADRs)
