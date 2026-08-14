@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-22.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The smoke test opens this checkout itself and replays its full
           # history — a shallow clone (the default) only has one commit.
@@ -51,7 +51,7 @@ jobs:
       matrix:
         task: [typecheck, unit]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
