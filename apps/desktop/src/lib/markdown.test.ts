@@ -16,7 +16,14 @@ function stripIds(blocks: Block[]): StrippedBlock[] {
     if (b.t === "hr") return { t: "hr" };
     if (b.t === "quote") return { t: "quote", c: stripInline(b.c) };
     if (b.t === "list") return { t: "list", ordered: b.ordered, items: b.items.map((i) => stripInline(i.c)) };
-    return { t: "pre", code: b.code };
+    if (b.t === "table") {
+      return {
+        t: "table",
+        header: b.header.map((c) => stripInline(c.c)),
+        rows: b.rows.map((r) => r.cells.map((c) => stripInline(c.c))),
+      };
+    }
+    return { t: "pre", lang: b.lang, code: b.code };
   });
 }
 
@@ -48,7 +55,20 @@ describe("parseMarkdown", () => {
 
   it("parses fenced code blocks without interpreting their contents", () => {
     const blocks = stripIds(parseMarkdown("```ts\nconst x = <T>1;\n```\n"));
-    expect(blocks).toEqual([{ t: "pre", code: "const x = <T>1;" }]);
+    expect(blocks).toEqual([{ t: "pre", lang: "ts", code: "const x = <T>1;" }]);
+  });
+
+  it("parses GFM tables", () => {
+    const blocks = stripIds(
+      parseMarkdown("| Platform | Packages |\n|----------|----------|\n| Windows  | .msi     |\n"),
+    );
+    expect(blocks).toEqual([
+      {
+        t: "table",
+        header: [[{ t: "text", s: "Platform" }], [{ t: "text", s: "Packages" }]],
+        rows: [[[{ t: "text", s: "Windows" }], [{ t: "text", s: ".msi" }]]],
+      },
+    ]);
   });
 
   it("parses lists and links", () => {

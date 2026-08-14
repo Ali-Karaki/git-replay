@@ -5,7 +5,7 @@
 
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BranchIcon, CloseIcon } from "../../components/Icons";
+import { BranchIcon, CloseIcon, GearIcon } from "../../components/Icons";
 import { Markdown } from "../../components/Markdown";
 import { CHAT_PROVIDERS, type ChatEvent } from "../../lib/types";
 import { useChat } from "../../stores/chat";
@@ -117,7 +117,7 @@ export function ChatPanel() {
             title="Chat settings (API key + model)"
             aria-label="Chat settings"
           >
-            ⚙
+            <GearIcon size={14} />
           </button>
           <button
             type="button"
