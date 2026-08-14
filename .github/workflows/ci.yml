@@ -23,6 +23,10 @@ jobs:
         os: [windows-latest, ubuntu-22.04]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The smoke test opens this checkout itself and replays its full
+          # history — a shallow clone (the default) only has one commit.
+          fetch-depth: 0
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
