@@ -23,3 +23,5 @@ fixtures/demo-repo/
 # Logs
 *.log
 selftest-result.json
+
+tmp/
