@@ -1,6 +1,6 @@
-// `?` keyboard cheatsheet overlay — dismiss with any key or a click.
-// Click-outside uses a document listener, so the backdrop itself carries no
-// mouse handlers (a purely presentational element).
+// `?` keyboard cheatsheet overlay — dismiss with Escape or a click outside.
+// Both use document listeners, so the backdrop itself carries no handlers
+// (a purely presentational element).
 
 import { useEffect, useRef } from "react";
 import { SHORTCUTS } from "../../lib/shortcuts";
@@ -13,8 +13,15 @@ export function Cheatsheet({ open, onClose }: { open: boolean; onClose: () => vo
     const onDown = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open, onClose]);
 
   if (!open) return null;

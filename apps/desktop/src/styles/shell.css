@@ -304,7 +304,7 @@
   min-width: 120px;
   white-space: nowrap;
 }
-.btn-play-big {
+.btn-play.btn-play-big {
   padding: 7px 22px;
   font-size: 13.5px;
   border-radius: 999px;
