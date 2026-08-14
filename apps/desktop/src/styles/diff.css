@@ -420,6 +420,11 @@ mark.wd {
   overflow: auto;
   min-height: 0;
 }
+/* File-viewer rows carry one line number, not the diff's two — the shared
+ * three-column diff grid would trap the code in its 54px middle column. */
+.file-scroll .diff-line {
+  grid-template-columns: 54px 1fr;
+}
 .file-scroll.wrap .diff-code {
   white-space: pre-wrap;
   word-break: break-all;
