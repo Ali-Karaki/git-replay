@@ -4,7 +4,6 @@ import { useState } from "react";
 import { AboutPage } from "./features/about/AboutPage";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { FileEvolution } from "./features/evolution/FileEvolution";
-import { ChangeMap } from "./features/map/ChangeMap";
 import { CommandPalette } from "./features/palette/CommandPalette";
 import { RangeSetup } from "./features/repository/RangeSetup";
 import { Welcome } from "./features/repository/Welcome";
@@ -54,7 +53,6 @@ function ReplayWorkspace() {
         {view === "step" && <StepView />}
         {view === "snapshot" && <SnapshotView />}
         {view === "evolution" && <FileEvolution />}
-        {view === "map" && <ChangeMap />}
       </div>
       <div className="bottombar">
         <Timeline />

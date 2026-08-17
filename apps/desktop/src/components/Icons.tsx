@@ -84,14 +84,6 @@ export const DiffIcon = (p: IconProps) => (
     <path d="M5.5 4.75h5M8 2.5v4.5M5.5 11.25h5" />
   </Svg>
 );
-export const MapIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <rect x="2" y="2" width="5.5" height="5.5" rx="1" />
-    <rect x="8.5" y="2" width="5.5" height="5.5" rx="1" />
-    <rect x="2" y="8.5" width="5.5" height="5.5" rx="1" />
-    <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" />
-  </Svg>
-);
 export const SpeedIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3.5 10.5a5 5 0 0 1 9 0" />

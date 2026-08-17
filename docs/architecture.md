@@ -108,7 +108,7 @@ stderr kept in a `detail` field for "Show details" surfaces.
 - Adaptive playback uses stats already in the prefetch cache — falls back to the
   fixed rate, never worse.
 - Huge timelines aggregate into day-buckets; the canvas never creates DOM nodes
-  per commit. The change map caps at 500 commits / 150 files, shown in its header.
+  per commit.
 - PR force-push versions depend on what GitHub still lets you fetch; garbage-collected
   versions report a clear "no longer fetchable" error.
 - Repository-change detection polls HEAD every 4s while visible rather than

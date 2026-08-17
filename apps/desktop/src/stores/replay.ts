@@ -8,7 +8,7 @@ import { clearCaches } from "../lib/dataCaches";
 import { api } from "../lib/ipc";
 import type { BranchInfo, HeadState, PrReplay, ReplayRange, RepoInfo, TagInfo, WorkingTreeFrame } from "../lib/types";
 
-export type ViewMode = "step" | "snapshot" | "evolution" | "map";
+export type ViewMode = "step" | "snapshot" | "evolution";
 export type Theme = "system" | "light" | "dark";
 export type DiffMode = "unified" | "split";
 export type Screen = "replay" | "settings" | "about";
@@ -416,11 +416,19 @@ export const useReplay = create<ReplayState>()(
         session: s.session,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state) applyTheme(state.theme);
+        if (!state) return;
+        applyTheme(state.theme);
+        state.view = coerceView(state.view);
+        if (state.session) state.session.view = coerceView(state.session.view);
       },
     },
   ),
 );
+
+/** Drop removed view ids (e.g. persisted `"map"`) so restore cannot land on a blank workspace. */
+export function coerceView(v: unknown): ViewMode {
+  return v === "snapshot" || v === "evolution" ? v : "step";
+}
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;

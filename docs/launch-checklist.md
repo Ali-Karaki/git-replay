@@ -47,5 +47,4 @@ release workflow, which builds all six installer formats as a draft release.
 - macOS builds are ad-hoc signed until Apple secrets exist; the README
   documents right-click-open.
 - `gh` is optional (PR mode degrades to fetch-only for public repos).
-- Change-map caps and chapter heuristics are documented in the UI and
-  `docs/review-2026-08.md`.
+- Chapter heuristics are documented in the UI and `docs/review-2026-08.md`.

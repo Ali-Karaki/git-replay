@@ -1,6 +1,6 @@
-// Left navigation rail (Linear-style): the four replay views in plain
-// language, plus Ask AI / Help / Settings in the footer. Collapses to an
-// icon-only rail; the collapsed state persists (store `sidebarCollapsed`).
+// Left navigation rail (Linear-style): the replay views in plain language,
+// plus Ask AI / Help / Settings in the footer. Collapses to an icon-only
+// rail; the collapsed state persists (store `sidebarCollapsed`).
 
 import {
   ChatIcon,
@@ -12,7 +12,6 @@ import {
   GearIcon,
   HelpIcon,
   type IconProps,
-  MapIcon,
 } from "../../components/Icons";
 import { VIEWS } from "../../lib/views";
 import { useChat } from "../../stores/chat";
@@ -22,7 +21,6 @@ const VIEW_ICONS: Record<ViewMode, (p: IconProps) => React.ReactNode> = {
   step: DiffIcon,
   snapshot: FolderIcon,
   evolution: EvolutionIcon,
-  map: MapIcon,
 };
 
 export function Sidebar({ onToggleCheatsheet }: { onToggleCheatsheet: () => void }) {

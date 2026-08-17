@@ -426,9 +426,6 @@ mark.wd {
 .file-scroll .diff-line {
   right: 12px;
 }
-.map-scroll {
-  padding: 0 12px 12px 0;
-}
 /* File-viewer rows carry one line number, not the diff's two — the shared
  * three-column diff grid would trap the code in its 54px middle column. */
 .file-scroll .diff-line {
@@ -462,68 +459,6 @@ mark.wd {
 .evolution-cta {
   align-self: flex-start;
   margin: 12px;
-}
-
-/* -- change map ------------------------------------------------------------------ */
-
-.map-view {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.map-wrap {
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-  position: relative;
-  background: var(--bg);
-}
-.map-scroll {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-  border: none;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  cursor: pointer;
-}
-.map-canvas {
-  display: block;
-}
-.map-tooltip {
-  position: absolute;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  padding: 6px 9px;
-  font-size: 11px;
-  font-family: var(--mono);
-  pointer-events: none;
-  z-index: 10;
-  white-space: nowrap;
-}
-.map-legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 6px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-panel);
-  font-size: 11px;
-}
-.map-legend .dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  margin-right: 5px;
-}
-.map-progress {
-  font-size: 11px;
 }
 
 /* -- markdown preview ---------------------------------------------------------------- */

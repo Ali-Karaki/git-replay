@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CommitMeta, ReplayRange } from "../lib/types";
-import { frameCommit, frameCount, frameSha, useReplay } from "./replay";
+import { coerceView, frameCommit, frameCount, frameSha, useReplay } from "./replay";
 
 function meta(sha: string, parents: string[] = [], subject = "subject"): CommitMeta {
   return {
@@ -59,6 +59,16 @@ describe("frame math", () => {
     expect(frameCommit(range, 0)).toBeNull();
     expect(frameCommit(range, 4)).toBeNull();
     expect(frameCommit(range, 2)?.sha).toBe("c2");
+  });
+});
+
+describe("coerceView", () => {
+  it("keeps remaining views and maps removed/unknown ids to step", () => {
+    expect(coerceView("step")).toBe("step");
+    expect(coerceView("snapshot")).toBe("snapshot");
+    expect(coerceView("evolution")).toBe("evolution");
+    expect(coerceView("map")).toBe("step");
+    expect(coerceView(undefined)).toBe("step");
   });
 });
 

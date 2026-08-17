@@ -132,13 +132,12 @@ export async function runSelfTest(): Promise<void> {
   record("A5 timeline canvas + transport render", (await waitFor(".timeline-canvas")) && (await waitFor(".transport")));
 
   // Sidebar: view navigation.
-  await step("A6 all four sidebar views switch views", async () => {
+  await step("A6 sidebar views switch views", async () => {
     useReplay.getState().setIndex(1); // step view renders its container only past the base frame
     for (const [item, cls] of [
       [".sidebar-item:nth-child(1)", ".view-step"],
       [".sidebar-item:nth-child(2)", ".view-snapshot"],
       [".sidebar-item:nth-child(3)", ".view-evolution"],
-      [".sidebar-item:nth-child(4)", ".map-view"],
     ] as const) {
       if (!click(item)) return false;
       if (!(await waitFor(cls, 4000))) return false;
@@ -222,24 +221,6 @@ export async function runSelfTest(): Promise<void> {
     click(".view-evolution .file-row");
     await waitFor(".evolution-detail", 4000);
     return rows >= 2;
-  });
-
-  // Change map.
-  await step("A16 change map: legend + canvas + cell click", async () => {
-    useReplay.getState().setView("map");
-    if (!(await waitFor(".map-view", 5000))) return false;
-    await waitFor(".map-canvas");
-    const legend = document.querySelector(".map-legend")?.textContent ?? "";
-    const canvas = document.querySelector<HTMLElement>(".map-canvas");
-    if (!canvas) return false;
-    canvas.dispatchEvent(
-      new MouseEvent("mousemove", {
-        clientX: canvas.getBoundingClientRect().left + 260,
-        clientY: canvas.getBoundingClientRect().top + 40,
-        bubbles: true,
-      }),
-    );
-    return legend.includes("created") && legend.includes("deleted");
   });
 
   // Timeline: zoom + chapters.

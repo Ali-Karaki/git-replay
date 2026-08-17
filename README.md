@@ -83,7 +83,7 @@ Then in the app: open `fixtures/demo-repo` → replay **main** → select
 | `←` / `→` | previous / next commit |
 | `Shift+←` / `Shift+→` | jump 5 commits |
 | `Space` | play / pause |
-| `1` / `2` / `3` / `4` | What changed / Browse code / File story / Overview |
+| `1` / `2` / `3` | What changed / Browse code / File story |
 | `/` | search |
 | `Ctrl+K` | command palette |
 
@@ -92,7 +92,6 @@ Then in the app: open `fixtures/demo-repo` → replay **main** → select
 - **Replay sources**: branch (merge-base aware), commit range, tags/releases,
   GitHub PR (force-push versions via `gh`), entire repository
 - **Working Tree frame**: uncommitted staged + unstaged changes as a final frame
-- **Change map**: file × commit activity grid
 - **Adaptive playback**: small commits flash by, substantial ones pause; manual stepping always works
 - **Chapters**: heuristic grouping as an alternate presentation — raw commits always visible
 - **Search**: commit messages, paths, and changed content (pickaxe)

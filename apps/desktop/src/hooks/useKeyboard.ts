@@ -87,7 +87,7 @@ export function useKeyboard(opts: {
           break;
         }
         default: {
-          // View keys 1–4 are data-driven from the shared VIEWS table.
+          // View keys 1–3 are data-driven from the shared VIEWS table.
           const v = VIEWS.find((v) => v.key === e.key);
           if (v) s.setView(v.id);
           break;
