@@ -1,0 +1,39 @@
+---
+description: Keep the codebase homogeneous — one way to do each thing
+alwaysApply: true
+---
+
+# Homogeneity (strict)
+
+This repo has **one** way to do each thing. New code must be indistinguishable from the files around it. If a pattern already exists, reuse it. If it does not, ask before inventing a second one.
+
+## Before writing
+
+1. Open the nearest sibling file and copy its shape: header comment, imports, naming, error handling, test style.
+2. Prefer editing an existing module over adding a file. A new file needs a clear home in the layout tables (frontend / engine rules).
+3. Do not add a dependency, folder, abstraction, or architectural layer without an explicit user request. No "while we're here" frameworks.
+
+## Forbidden without an ADR + user OK
+
+- New npm or Cargo dependencies (including icon packs, CSS frameworks, extra state libs)
+- Tailwind, CSS modules, CSS-in-JS, styled-components, shadcn
+- HTTP backend, Postgres, cloud sync, libgit2 / gitoxide
+- Barrel `index.ts` files
+- New top-level directories (`apps/desktop/src/<new>`, repo-root packages, extra crates)
+- A second cache, a second IPC wrapper, or a second error type
+
+## Cleanliness
+
+- No commented-out code, no `TODO`/`FIXME` left in the diff, no unused exports, no dead CSS classes
+- No drive-by refactors inside a feature commit; no formatting-only noise mixed with behavior
+- Delete code that the change makes unused — do not leave adapters "for later"
+- Names are specific (`parse_log_metas`, `displayPath`). No `utils.ts`, `helpers.rs`, `misc`, `data2`
+- File header is 1–3 lines stating **purpose**, then a blank line, then imports. Comments explain surprising git/UI behavior, never what the next line obviously does
+
+## Do not retrofit
+
+Match **new** code to these rules. Do not churn working files to satisfy them (e.g. rewriting `Icons.tsx` into `function` exports, splitting `App.tsx`, or introducing barrels "for consistency").
+
+## Definition of done
+
+`make check` is green. Paired files from the change-checklist rule are updated. User-facing copy is plain language (`src/lib/views.ts`). Docs/ADR updated if behavior or a boundary changed.

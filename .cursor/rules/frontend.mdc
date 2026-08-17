@@ -1,0 +1,47 @@
+---
+description: Strict TypeScript and React structure, naming, IPC, and tests
+globs: apps/desktop/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend (strict)
+
+Biome is law (`apps/desktop/biome.json`): 2-space, **120** cols, double quotes, semicolons, trailing commas, `(x) =>`, template literals. Run `make fix`. Do not hand-format against Biome.
+
+## Files and names
+
+- Components: `PascalCase.tsx`, `export function Foo`. **No default exports** (exception: `App.tsx` for Vite).
+- Hooks: `useThing.ts` in `src/hooks/`. Pure helpers: `camelCase.ts` in `src/lib/`.
+- Tests: `foo.test.ts` next to `foo.ts`. Vitest `describe` / `it` / `expect`. No snapshot tests unless one already exists for that unit.
+- No `index.ts` barrels. Import the concrete file.
+- Feature folders import shared UI from `components/`, data from `lib/` + `stores/`. Do not reach into another feature's internals; extract shared code upward instead.
+- JSX belongs in `features/` or `components/`. `lib/` is TS only.
+
+```tsx
+// ❌
+export const Panel = () => <div />;
+export default Panel;
+
+// ✅
+export function Panel() {
+  return <div />;
+}
+```
+
+## Data and state
+
+- Domain IPC: **only** `src/lib/ipc.ts` (`api.*`). Do not `invoke("git_…")` from components. Tauri plugins (`dialog`, `opener`, `event`, `app`) may be called at the site that needs them.
+- Playback/UI: `useReplay((s) => s.field)` — never subscribe to the whole store.
+- Repo data: engine + `src/lib/dataCaches.ts` + `useData`. Do not stash blobs/trees/diffs in zustand or React context.
+- CPU (highlight, word-diff): `src/workers/` only.
+
+## UI
+
+- Classes from `src/styles/`. Colors via `var(--token)` — see the CSS rule.
+- `style={{}}` only for measured layout (virtualizer offsets, tooltip x/y, indent-by-depth). No decorative inline styles.
+- Loading/error/empty: `components/States.tsx`. Icons: `components/Icons.tsx` (no icon library).
+- Copy is plain language (`VIEWS` in `lib/views.ts`: "What changed", not "Diff hunk"). Buttons are `<button type="button">`.
+
+## Tests
+
+Cover parsers, frame math, and playback boundaries. If you change git-facing UI behavior, add or extend a vitest case. Do not test CSS or Tauri plugins in unit tests.

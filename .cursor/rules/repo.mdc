@@ -1,0 +1,46 @@
+---
+description: Product invariants, layout, and commands — do not invent a parallel architecture
+alwaysApply: true
+---
+
+# Git Replay
+
+Local-first Tauri app: React + TypeScript UI, Rust engine, system Git CLI.
+Nothing is uploaded. There is no HTTP backend and no Postgres.
+
+## Invariants (never violate)
+
+1. **Git is authoritative.** System Git CLI only. Never reimplement git semantics. Never parse human-formatted git output — plumbing + `-z` only.
+2. **Replay is the product.** Features answer questions about time, continuity, and progression. Code-review / PM features are out of scope.
+3. **Raw history stays visible.** Never silently rewrite, hide, or replace commits. Chapters and filters are presentation.
+4. **Offline by default.** Optional network (`gh`, BYO-key chat) must not break core replay.
+5. **Cache is derived.** SQLite and memory caches are delete-safe. Deleting them recomputes; it never loses repo data.
+6. **UI stays responsive.** Git/disk in Rust `spawn_blocking`. Highlighting and word-diffs in Web Workers. Previous/Next feels instant.
+
+Read `docs/architecture.md` and `docs/decisions/` before touching boundaries. New ADRs: `docs/decisions/NNNN-kebab-title.md`.
+
+## Where code lives (mandatory)
+
+| Kind | Path |
+|------|------|
+| UI feature | `apps/desktop/src/features/<feature>/` |
+| Shared widgets | `apps/desktop/src/components/` |
+| Hooks | `apps/desktop/src/hooks/` |
+| Pure TS + IPC + caches | `apps/desktop/src/lib/` |
+| Zustand stores | `apps/desktop/src/stores/` |
+| CSS | `apps/desktop/src/styles/` |
+| Workers | `apps/desktop/src/workers/` |
+| Git engine | `apps/desktop/src-tauri/src/git/` |
+| IPC types (Rust) | `.../git/types.rs` (mirror in `src/lib/types.ts`) |
+| Thin IPC | `.../commands.rs` |
+| Service layer | `.../state.rs` |
+| Engine fixtures | `apps/desktop/src-tauri/tests/` |
+| Architecture | `docs/` |
+
+Do not put JSX in `lib/`, git parsing in `commands.rs`, or CSS in feature folders.
+
+## Commands
+
+From repo root: `make check` before considering work done. `make kill` on Windows before cargo rebuilds while the app is running.
+
+Never commit `node_modules/`, `target/`, `fixtures/demo-repo/`, secrets, or `.env`.

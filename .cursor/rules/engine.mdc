@@ -1,0 +1,45 @@
+---
+description: Strict Rust engine layout, Git CLI, IPC types, errors, and fixtures
+globs: apps/desktop/src-tauri/**/*.rs
+alwaysApply: false
+---
+
+# Rust engine (strict)
+
+`rustfmt` defaults (4-space, edition 2021). No `#[rustfmt::skip]`. No new crates without a user request.
+
+## Module layout (do not leak)
+
+| File | Allowed to contain |
+|------|-------------------|
+| `git/mod.rs` | `run_git`, shared byte helpers (`lossy`, `trim_line`, `literal_pathspec`) |
+| `git/<concern>.rs` | One concern: `history`, `changes`, `diff`, `snapshot`, `evolution`, `search`, `working_tree`, `pr` |
+| `git/types.rs` | IPC-facing structs/enums only — `Serialize`, `#[serde(rename_all = "camelCase")]` |
+| `commands.rs` | Thin `#[tauri::command]` wrappers that `spawn_blocking` into `AppState` |
+| `state.rs` | Repo registry + cache-backed service methods |
+| `cache.rs` | SQLite derived cache |
+| `error.rs` | `AppError` / `ErrorKind` / `GitFailure` |
+| `tests/` | Real git-CLI fixtures and invariant tests |
+
+Do not parse git in `commands.rs`. Do not add a parallel `types` module. Mirror every IPC type in `apps/desktop/src/lib/types.ts` in the same change.
+
+## Git CLI
+
+Plumbing + `-z`, argv array, no shell. Env: `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`.
+
+- Order: `--topo-order`, never author-date
+- Roots: `diff-tree --root`. Merges: explicit parent, never combined diff
+- Renames: git `-M -C` / `--follow` only
+- Trees by object SHA; paths via `:(literal)` + `lossy()` for non-UTF-8
+
+## Errors and panics
+
+Library paths return `Result<_, AppError>`. Friendly `message` + optional `detail` (raw git stderr). Never `unwrap()` outside tests. Mutex poison: `.expect("… mutex poisoned")` only, matching `state.rs`.
+
+```rust
+//! One-paragraph module docs (this crate uses `//!`, not `//` for files).
+```
+
+## Tests
+
+Build **real** repos in temp dirs (`tests/fixtures`, isolated `GIT_CONFIG_*`). Assert against git's own output. New parsing ⇒ fixture that pins the bytes (rename, merge, binary, symlink, dates — not only the happy path). When a test fails, probe actual git output before changing the parser.

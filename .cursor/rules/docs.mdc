@@ -1,0 +1,41 @@
+---
+description: Docs, ADRs, and prose formatting
+globs: "**/*.md"
+alwaysApply: false
+---
+
+# Docs (strict)
+
+Wrap prose at ~80 columns (commit bodies at 72). Use the same tone as `README.md` and `docs/architecture.md`: short sentences, no hype, no git jargon unless the reader is in an engine/ADR doc.
+
+## Where
+
+| Change | Update |
+|--------|--------|
+| User-visible behavior | `README.md` capabilities + `CHANGELOG.md` |
+| Layer / git / cache / IPC | `docs/architecture.md` |
+| A rejected alternative or a new boundary | new ADR in `docs/decisions/` |
+| How to run / test / PR | `CONTRIBUTING.md` |
+
+Do not add a second architecture doc, a wiki, or a `docs/spec.md`. Do not duplicate ADRs into README.
+
+## ADRs
+
+Next number after the last `docs/decisions/NNNN-*.md`. Kebab filename. House template:
+
+```markdown
+# ADR-NNNN: Title
+
+**Status:** accepted
+**Date:** YYYY-MM-DD
+
+## Context
+## Decision
+## Consequences
+```
+
+Status is `accepted`, `superseded`, or `rejected`. Link the sibling ADR if superseded.
+
+## Changelog
+
+Keep a Changelog headings (`Added` / `Changed` / `Fixed`). Past tense. User-facing only — no "refactored cache mutex" entries.

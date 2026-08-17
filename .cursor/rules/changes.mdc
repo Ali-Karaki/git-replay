@@ -1,0 +1,35 @@
+---
+description: When adding a command, view, or shortcut, update every paired file in the same change
+alwaysApply: true
+---
+
+# Change checklists
+
+A change is incomplete if a paired file is skipped. Do this in the **same** diff.
+
+## New or changed IPC command
+
+1. `git/<concern>.rs` and/or `state.rs` — implementation
+2. `git/types.rs` — `#[serde(rename_all = "camelCase")]` types
+3. `commands.rs` — thin `spawn_blocking` wrapper
+4. `lib.rs` — add to `generate_handler!`
+5. `src/lib/types.ts` — mirror the types
+6. `src/lib/ipc.ts` — `api.foo()` (the only git `invoke` site)
+7. `src/lib/dataCaches.ts` — if the result is fetched while stepping frames
+8. `src-tauri/capabilities/default.json` — only if a **new Tauri plugin/permission** is required
+
+Do not call `invoke("snake_case_cmd")` from a component. Cache keys must match engine defaults (null parent index = first parent).
+
+## New view or keyboard binding
+
+- Views: add the row to `src/lib/views.ts` first. Sidebar, palette, and cheatsheet **read that table** — do not hardcode a fifth label.
+- Shortcuts: `useKeyboard.ts` **and** `src/lib/shortcuts.ts` together. Settings/`?` render `SHORTCUTS`; a binding that is missing from either file is a bug.
+- Long lists: `@tanstack/react-virtual`. Timeline marks: canvas in `features/timeline/`, never a DOM node per commit.
+
+## New user-visible flow
+
+Add a step to `src/lib/selfTest.ts` (it drives the real app). Engine semantics: fixture test in `src-tauri/tests/`. Parsers/frame math: colocated vitest.
+
+## Do not "clean up" existing exceptions
+
+Leave them unless the task is specifically to change them: `App.tsx` default export; `Icons.tsx` arrow-const icons; `invoke` inside `selfTest.ts`; Tauri plugins (`dialog`, `opener`, `event`) called at the call site; `style={{}}` on virtualizer/tooltip/indent.

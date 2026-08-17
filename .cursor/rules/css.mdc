@@ -1,0 +1,56 @@
+---
+description: Strict CSS — tokens, kebab-case, section banners, no parallel styling systems
+globs: apps/desktop/src/**/*.css
+alwaysApply: false
+---
+
+# CSS (strict)
+
+Plain global CSS in `src/styles/` only. **No** CSS modules, Tailwind, Sass, CSS-in-JS, or stylesheets next to components.
+
+## Files
+
+| File | Owns |
+|------|------|
+| `tokens.css` | `:root` and dark `[data-theme]` / `prefers-color-scheme` variables only |
+| `shell.css` | app chrome: topbar, sidebar, workspace, buttons, empty/error |
+| `views.css` | feature layouts (step, snapshot, evolution, map, welcome, settings) |
+| `diff.css` | diffs, file viewer, syntax token classes |
+
+Put a new class in the file that already styles that surface. Do not add a fifth stylesheet.
+
+## Tokens
+
+Every color, radius, font, and control height comes from `tokens.css` (`--bg`, `--text`, `--text-dim`, `--border`, `--accent`, `--add`, `--del`, `--radius-sm`, `--mono`, `--hl-*`, …).
+
+```css
+/* ❌ */
+.color: #3d6be6;
+background: white;
+
+/* ✅ */
+.color: var(--accent);
+background: var(--bg-panel);
+```
+
+Hex (and raw rgba) belong **only** in `tokens.css`.
+
+## Shape
+
+- Class names: short **kebab-case**, existing vocabulary (`btn`, `btn-primary`, `btn-ghost`, `empty-state`, `repo-chip`). No BEM (`Block__Elem--mod`), no hashed names, no `css-` prefixes.
+- Group with the house banner, then a blank line:
+
+```css
+/* -- top bar ---------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+```
+
+- Reuse `.btn` / `.btn-primary` / `.btn-ghost` instead of restyling `<button>` per feature.
+- No `!important`. No element restyles outside `tokens.css` resets. Delete unused selectors in the same change that removes the markup.

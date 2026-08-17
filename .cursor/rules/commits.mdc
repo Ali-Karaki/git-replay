@@ -1,0 +1,46 @@
+---
+description: Strict commit, PR, and changelog conventions
+alwaysApply: true
+---
+
+# Commits and PRs
+
+Commit **only** when the user asks. Never amend a pushed commit. Never force-push `main`. Never `--no-verify`.
+
+## Subject (mandatory shape)
+
+```
+type(scope): lowercase imperative summary
+```
+
+- Conventional Commits. **Lowercase** after the colon. Imperative. ≤72 characters. No trailing period.
+- One type, one logical change. Do not stack `feat` + `refactor` + `chore` in one commit.
+- No `wip:`, `temp:`, `misc:`, or subject lines that just list files.
+
+| Type | When |
+|------|------|
+| `feat` | user-visible capability |
+| `fix` | bug |
+| `refactor` | same behavior, clearer structure |
+| `test` | tests only |
+| `docs` | README, architecture, ADRs, Cursor rules |
+| `ci` | GitHub Actions |
+| `chore` | ignore files, deps, tooling with no product change |
+
+Scopes: `engine`, `ui`, `chat`. Omit scope when repo-wide (`docs:`, `ci:`).
+
+```
+feat(engine): follow renames via git log --follow
+fix(ui): keep the selected file across frames
+docs: document cache deletion invariance
+```
+
+## Body
+
+Wrap at 72 columns. Explain **why** (the surprising git/UI fact), not a file inventory. Blank line after the subject.
+
+## PRs and changelog
+
+PR body follows `.github/PULL_REQUEST_TEMPLATE.md`. `make check` must pass. New git parsing requires a fixture that pins the byte format.
+
+User-visible changes: `CHANGELOG.md` (Keep a Changelog, past tense, under the current version heading). Skip for pure `chore`/`ci`/`test` unless a user would notice.
