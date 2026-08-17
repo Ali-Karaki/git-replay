@@ -8,6 +8,21 @@ export const TIMELINE_HEIGHT = 64;
 export const TIMELINE_PAD = 16;
 export const MIN_PX_PER_COMMIT = 3;
 export const MAX_PX_PER_COMMIT = 48;
+/** Pixels-per-commit used when leaving fit mode via +/- (not wheel). */
+export const FIT_ZOOM_START = 12;
+export const ZOOM_STEP = 1.5;
+/** Below this, button/keyboard zoom-out snaps back to fit. */
+export const MIN_ZOOM_PX = 2;
+
+export function nextZoomIn(zoom: number | "fit"): number {
+  return Math.min((zoom === "fit" ? FIT_ZOOM_START : zoom) * ZOOM_STEP, MAX_PX_PER_COMMIT);
+}
+
+export function nextZoomOut(zoom: number | "fit"): number | "fit" {
+  const current = zoom === "fit" ? FIT_ZOOM_START : zoom;
+  const next = current / ZOOM_STEP;
+  return next < MIN_ZOOM_PX ? "fit" : next;
+}
 
 export interface DayBucket {
   count: number;

@@ -2,12 +2,12 @@
 // reset, and the keyboard reference.
 
 import { useEffect, useState } from "react";
-import { RefreshIcon } from "../../components/Icons";
+import { RefreshIcon, ZoomInIcon, ZoomOutIcon } from "../../components/Icons";
 import { formatBytes } from "../../lib/format";
 import { api } from "../../lib/ipc";
 import { SHORTCUTS } from "../../lib/shortcuts";
 import type { CacheInfo } from "../../lib/types";
-import { type Theme, useReplay } from "../../stores/replay";
+import { type Theme, uiZoomPercent, useReplay } from "../../stores/replay";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -86,6 +86,19 @@ export function SettingsPage() {
                   {t}
                 </button>
               ))}
+            </div>
+          </Row>
+          <Row label="Zoom" hint="Ctrl++ / Ctrl+- / Ctrl+0 — scales the whole window">
+            <div className="segmented">
+              <button type="button" className="btn-icon" onClick={() => s.zoomUiOut()} aria-label="Zoom out">
+                <ZoomOutIcon size={13} />
+              </button>
+              <button type="button" className="chip" onClick={() => s.resetUiZoom()} title="Reset zoom">
+                {uiZoomPercent(s.uiZoomLevel)}%
+              </button>
+              <button type="button" className="btn-icon" onClick={() => s.zoomUiIn()} aria-label="Zoom in">
+                <ZoomInIcon size={13} />
+              </button>
             </div>
           </Row>
         </Section>

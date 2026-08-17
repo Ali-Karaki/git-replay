@@ -13,6 +13,7 @@ export const SHORTCUTS: Array<[string, string]> = [
   [VIEWS.map((v) => v.key).join(" / "), VIEWS.map((v) => v.label).join(" / ")],
   ["/", "search commits, files, and changed content"],
   ["Ctrl+K", "command palette"],
+  ["Ctrl++ / Ctrl+- / Ctrl+0", "zoom in / out / reset"],
   ["?", "this cheatsheet"],
   ["Esc", "close overlays"],
 ];

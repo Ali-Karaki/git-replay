@@ -2,7 +2,18 @@
 // behind the canvas (ADR-0004).
 
 import { describe, expect, it } from "vitest";
-import { buildTimelineLayout, computeChapters, MIN_PX_PER_COMMIT, TIMELINE_PAD } from "./timelineModel";
+import {
+  buildTimelineLayout,
+  computeChapters,
+  FIT_ZOOM_START,
+  MAX_PX_PER_COMMIT,
+  MIN_PX_PER_COMMIT,
+  MIN_ZOOM_PX,
+  nextZoomIn,
+  nextZoomOut,
+  TIMELINE_PAD,
+  ZOOM_STEP,
+} from "./timelineModel";
 import type { CommitMeta, ReplayRange } from "./types";
 
 function meta(subject: string, parents: string[] = [], commitTs = 1_700_000_000): CommitMeta {
@@ -134,5 +145,21 @@ describe("buildTimelineLayout", () => {
     // Scroll clamps at the content end.
     const clamped = buildTimelineLayout(range, hasWt, 300, 10, 99999);
     expect(clamped.frameAt(300 - TIMELINE_PAD)).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("nextZoomIn / nextZoomOut", () => {
+  it("zooms in from fit using the start size", () => {
+    expect(nextZoomIn("fit")).toBe(FIT_ZOOM_START * ZOOM_STEP);
+  });
+
+  it("clamps zoom-in at the max px-per-commit", () => {
+    expect(nextZoomIn(MAX_PX_PER_COMMIT)).toBe(MAX_PX_PER_COMMIT);
+    expect(nextZoomIn(MAX_PX_PER_COMMIT - 1)).toBe(MAX_PX_PER_COMMIT);
+  });
+
+  it("snaps zoom-out to fit below the minimum", () => {
+    expect(nextZoomOut(MIN_ZOOM_PX)).toBe("fit");
+    expect(nextZoomOut(MIN_ZOOM_PX * ZOOM_STEP)).toBe(MIN_ZOOM_PX);
   });
 });

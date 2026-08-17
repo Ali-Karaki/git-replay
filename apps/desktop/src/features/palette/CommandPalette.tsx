@@ -148,6 +148,24 @@ export function CommandPalette({
       });
     }
     cmds.push({
+      id: "ui-zoom-in",
+      label: "Zoom in",
+      hint: "Ctrl++",
+      run: () => s.zoomUiIn(),
+    });
+    cmds.push({
+      id: "ui-zoom-out",
+      label: "Zoom out",
+      hint: "Ctrl+-",
+      run: () => s.zoomUiOut(),
+    });
+    cmds.push({
+      id: "ui-zoom-reset",
+      label: "Reset zoom",
+      hint: "Ctrl+0",
+      run: () => s.resetUiZoom(),
+    });
+    cmds.push({
       id: "open",
       label: "Open repository…",
       run: () => {

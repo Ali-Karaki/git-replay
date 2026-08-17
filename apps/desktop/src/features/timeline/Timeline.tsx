@@ -9,6 +9,7 @@ import {
   buildTimelineLayout,
   computeChapters,
   MAX_PX_PER_COMMIT,
+  MIN_ZOOM_PX,
   TIMELINE_HEIGHT,
   TIMELINE_PAD,
 } from "../../lib/timelineModel";
@@ -35,6 +36,9 @@ export function Timeline() {
   const setIndex = useReplay((s) => s.setIndex);
   const setTimelineZoom = useReplay((s) => s.setTimelineZoom);
   const setTimelineScroll = useReplay((s) => s.setTimelineScroll);
+  const zoomTimelineIn = useReplay((s) => s.zoomTimelineIn);
+  const zoomTimelineOut = useReplay((s) => s.zoomTimelineOut);
+  const fitTimeline = useReplay((s) => s.fitTimeline);
 
   const chapters = useMemo(() => (range ? computeChapters(range, hasWorkingTree) : []), [range, hasWorkingTree]);
   const totalFrames = range ? range.commits.length + 1 + (hasWorkingTree ? 1 : 0) : 0;
@@ -275,26 +279,12 @@ export function Timeline() {
     if (zoom === "fit" && e.deltaY > 0) return; // wheel-down at fit = already zoomed out
 
     const factor = e.deltaY < 0 ? 1.25 : 0.8;
-    const next = Math.min(Math.max(current * factor, 2), MAX_PX_PER_COMMIT);
+    const next = Math.min(Math.max(current * factor, MIN_ZOOM_PX), MAX_PX_PER_COMMIT);
     const anchorFrame = (mouseX - TIMELINE_PAD + scroll) / current;
     const maxScroll = Math.max(0, n * next - usable);
     const nextScroll = TIMELINE_PAD + anchorFrame * next - mouseX;
     setTimelineZoom(next);
     setTimelineScroll(Math.min(Math.max(nextScroll, 0), maxScroll));
-  };
-
-  const zoomIn = () => {
-    setTimelineZoom(Math.min((zoom === "fit" ? 12 : zoom) * 1.5, MAX_PX_PER_COMMIT));
-  };
-  const zoomOut = () => {
-    const current = zoom === "fit" ? 12 : zoom;
-    const next = current / 1.5;
-    if (next < 2) {
-      setTimelineZoom("fit");
-      setTimelineScroll(0);
-    } else {
-      setTimelineZoom(next);
-    }
   };
 
   return (
@@ -334,7 +324,7 @@ export function Timeline() {
         <button
           type="button"
           className="btn-icon"
-          onClick={zoomOut}
+          onClick={zoomTimelineOut}
           title="Zoom out (fit when far)"
           aria-label="Zoom out"
         >
@@ -343,17 +333,14 @@ export function Timeline() {
         <button
           type="button"
           className="btn-icon"
-          onClick={() => {
-            setTimelineZoom("fit");
-            setTimelineScroll(0);
-          }}
+          onClick={fitTimeline}
           title="Fit to width"
           aria-label="Fit to width"
           style={{ fontSize: 10, fontWeight: 600, minWidth: 22 }}
         >
           {zoom === "fit" ? "≡" : `${Math.round(zoom)}px`}
         </button>
-        <button type="button" className="btn-icon" onClick={zoomIn} title="Zoom in" aria-label="Zoom in">
+        <button type="button" className="btn-icon" onClick={zoomTimelineIn} title="Zoom in" aria-label="Zoom in">
           <ZoomInIcon size={13} />
         </button>
       </div>

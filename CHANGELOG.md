@@ -6,6 +6,10 @@ versions with [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Window zoom: Ctrl++ / Ctrl+- / Ctrl+0 (Cmd on macOS) scales the whole app.
+
 ### Removed
 
 - Overview (change map): the file × commit activity grid.

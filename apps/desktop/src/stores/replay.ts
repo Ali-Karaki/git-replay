@@ -2,10 +2,12 @@
 // the module-level query caches — never in global React state (spec §32).
 
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { clearCaches } from "../lib/dataCaches";
 import { api } from "../lib/ipc";
+import { nextZoomIn, nextZoomOut } from "../lib/timelineModel";
 import type { BranchInfo, HeadState, PrReplay, ReplayRange, RepoInfo, TagInfo, WorkingTreeFrame } from "../lib/types";
 
 export type ViewMode = "step" | "snapshot" | "evolution";
@@ -60,6 +62,7 @@ interface ReplayState {
   errorDetail: string | null;
   recentRepos: string[];
   theme: Theme;
+  uiZoomLevel: number;
   repoChanged: boolean;
   session: SavedSession | null;
 
@@ -87,7 +90,13 @@ interface ReplayState {
   setMergeParent(p: number): void;
   setTimelineZoom(z: number | "fit"): void;
   setTimelineScroll(s: number): void;
+  zoomTimelineIn(): void;
+  zoomTimelineOut(): void;
+  fitTimeline(): void;
   setTheme(t: Theme): void;
+  zoomUiIn(): void;
+  zoomUiOut(): void;
+  resetUiZoom(): void;
   refreshRepo(): Promise<void>;
 }
 
@@ -142,6 +151,7 @@ export const useReplay = create<ReplayState>()(
       errorDetail: null,
       recentRepos: [],
       theme: "system",
+      uiZoomLevel: 0,
       repoChanged: false,
       session: null,
 
@@ -380,9 +390,40 @@ export const useReplay = create<ReplayState>()(
         set({ timelineScroll: s });
       },
 
+      zoomTimelineIn() {
+        set({ timelineZoom: nextZoomIn(get().timelineZoom) });
+      },
+
+      zoomTimelineOut() {
+        const next = nextZoomOut(get().timelineZoom);
+        if (next === "fit") set({ timelineZoom: "fit", timelineScroll: 0 });
+        else set({ timelineZoom: next });
+      },
+
+      fitTimeline() {
+        set({ timelineZoom: "fit", timelineScroll: 0 });
+      },
+
       setTheme(t) {
         set({ theme: t });
         applyTheme(t);
+      },
+
+      zoomUiIn() {
+        const next = clampUiZoom(get().uiZoomLevel + 1);
+        set({ uiZoomLevel: next });
+        applyUiZoom(next);
+      },
+
+      zoomUiOut() {
+        const next = clampUiZoom(get().uiZoomLevel - 1);
+        set({ uiZoomLevel: next });
+        applyUiZoom(next);
+      },
+
+      resetUiZoom() {
+        set({ uiZoomLevel: 0 });
+        applyUiZoom(0);
       },
 
       async refreshRepo() {
@@ -405,6 +446,7 @@ export const useReplay = create<ReplayState>()(
       partialize: (s) => ({
         recentRepos: s.recentRepos,
         theme: s.theme,
+        uiZoomLevel: s.uiZoomLevel,
         diffMode: s.diffMode,
         hideGenerated: s.hideGenerated,
         hideWhitespaceOnly: s.hideWhitespaceOnly,
@@ -418,6 +460,7 @@ export const useReplay = create<ReplayState>()(
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         applyTheme(state.theme);
+        applyUiZoom(state.uiZoomLevel ?? 0);
         state.view = coerceView(state.view);
         if (state.session) state.session.view = coerceView(state.session.view);
       },
@@ -436,5 +479,30 @@ function applyTheme(theme: Theme) {
     root.removeAttribute("data-theme");
   } else {
     root.setAttribute("data-theme", theme);
+  }
+}
+
+/** Cursor/VS Code step: each level is ×1.2. 0 = 100%. */
+const UI_ZOOM_FACTOR = 1.2;
+const UI_ZOOM_MIN = -5;
+const UI_ZOOM_MAX = 5;
+
+function clampUiZoom(level: number): number {
+  return Math.min(UI_ZOOM_MAX, Math.max(UI_ZOOM_MIN, Math.round(level)));
+}
+
+export function uiZoomPercent(level: number): number {
+  return Math.round(UI_ZOOM_FACTOR ** level * 100);
+}
+
+function applyUiZoom(level: number) {
+  try {
+    void getCurrentWebview()
+      .setZoom(UI_ZOOM_FACTOR ** level)
+      .catch(() => {
+        // jsdom / `vite preview` has no webview.
+      });
+  } catch {
+    // Not running inside Tauri.
   }
 }

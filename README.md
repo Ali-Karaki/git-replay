@@ -86,6 +86,7 @@ Then in the app: open `fixtures/demo-repo` → replay **main** → select
 | `1` / `2` / `3` | What changed / Browse code / File story |
 | `/` | search |
 | `Ctrl+K` | command palette |
+| `Ctrl++` / `Ctrl+-` / `Ctrl+0` | zoom in / out / reset |
 
 ### Capabilities
 

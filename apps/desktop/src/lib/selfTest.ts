@@ -259,7 +259,7 @@ export async function runSelfTest(): Promise<void> {
   });
 
   // Keyboard.
-  await step("A19 keyboard: arrows/space/home/end/view keys", async () => {
+  await step("A19 keyboard: arrows/space/home/end/view keys/zoom", async () => {
     useReplay.getState().setIndex(1);
     pressKey("ArrowRight");
     await wait(80);
@@ -282,7 +282,13 @@ export async function runSelfTest(): Promise<void> {
     const view2 = useReplay.getState().view === "snapshot";
     pressKey("1");
     await wait(200);
-    return right && left && played && end && home && view2 && useReplay.getState().view === "step";
+    pressKey("=", { ctrlKey: true });
+    await wait(80);
+    const zoomedIn = useReplay.getState().uiZoomLevel === 1;
+    pressKey("0", { ctrlKey: true });
+    await wait(80);
+    const reset = useReplay.getState().uiZoomLevel === 0;
+    return right && left && played && end && home && view2 && useReplay.getState().view === "step" && zoomedIn && reset;
   });
 
   // Command palette.

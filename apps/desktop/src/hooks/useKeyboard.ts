@@ -1,5 +1,6 @@
 // Global keyboard navigation. Inputs/textareas never trap these bindings
-// (except Escape and Ctrl+K, which are handled globally).
+// (except Escape, Ctrl+K, and Ctrl++ / Ctrl+- / Ctrl+0, which are handled
+// globally so the webview cannot fight our persisted zoom).
 
 import { useEffect } from "react";
 import { getCachedCommitDetail } from "../lib/dataCaches";
@@ -34,6 +35,19 @@ export function useKeyboard(opts: {
         e.preventDefault();
         onOpenPalette();
         return;
+      }
+      if (e.ctrlKey || e.metaKey) {
+        const zoomIn = e.key === "=" || e.key === "+" || e.code === "NumpadAdd";
+        const zoomOut = e.key === "-" || e.key === "_" || e.code === "NumpadSubtract";
+        const reset = e.key === "0" || e.code === "Numpad0";
+        if (zoomIn || zoomOut || reset) {
+          e.preventDefault();
+          const s = useReplay.getState();
+          if (zoomIn) s.zoomUiIn();
+          else if (zoomOut) s.zoomUiOut();
+          else s.resetUiZoom();
+          return;
+        }
       }
       if (typing) return;
 
