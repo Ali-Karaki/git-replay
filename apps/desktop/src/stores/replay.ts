@@ -47,8 +47,6 @@ interface ReplayState {
   // selection & presentation
   selectedFile: string | null;
   diffMode: DiffMode;
-  hideGenerated: boolean;
-  hideWhitespaceOnly: boolean;
   mergeParent: number;
   timelineZoom: number | "fit";
   timelineScroll: number;
@@ -137,8 +135,6 @@ export const useReplay = create<ReplayState>()(
       view: "step",
       selectedFile: null,
       diffMode: "unified",
-      hideGenerated: false,
-      hideWhitespaceOnly: false,
       mergeParent: 0,
       timelineZoom: "fit",
       timelineScroll: 0,
@@ -448,8 +444,6 @@ export const useReplay = create<ReplayState>()(
         theme: s.theme,
         uiZoomLevel: s.uiZoomLevel,
         diffMode: s.diffMode,
-        hideGenerated: s.hideGenerated,
-        hideWhitespaceOnly: s.hideWhitespaceOnly,
         speed: s.speed,
         adaptivePlayback: s.adaptivePlayback,
         view: s.view,

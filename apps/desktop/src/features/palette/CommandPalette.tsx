@@ -123,16 +123,6 @@ export function CommandPalette({
         label: `Toggle ${s.diffMode === "unified" ? "split" : "unified"} diff`,
         run: () => set({ diffMode: s.diffMode === "unified" ? "split" : "unified" }),
       });
-      cmds.push({
-        id: "hide-generated",
-        label: `${s.hideGenerated ? "Show" : "Hide"} generated files`,
-        run: () => set({ hideGenerated: !s.hideGenerated }),
-      });
-      cmds.push({
-        id: "hide-ws",
-        label: `${s.hideWhitespaceOnly ? "Show" : "Hide"} whitespace-only changes`,
-        run: () => set({ hideWhitespaceOnly: !s.hideWhitespaceOnly }),
-      });
       const sel = s.selectedFile;
       if (sel) {
         cmds.push({ id: "copy-path", label: `Copy file path: ${sel}`, run: () => void copyText(sel) });

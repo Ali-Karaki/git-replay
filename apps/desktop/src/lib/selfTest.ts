@@ -151,7 +151,7 @@ export async function runSelfTest(): Promise<void> {
     useReplay.getState().setIndex(1);
     return (await waitFor(".commit-subject")) && (await waitFor(".file-row"));
   });
-  await step("A8 select a file → diff renders with real hunk headers", async () => {
+  await step("A8 first changed file opens a diff with real hunk headers", async () => {
     const range = useReplay.getState().range;
     const repo = useReplay.getState().repo;
     if (!range || !repo) return false;
@@ -159,7 +159,9 @@ export async function runSelfTest(): Promise<void> {
     const detail = await getCommitDetail(repo.id, commit.sha, null);
     const file = detail.files.find((f) => !f.binary);
     if (!file) return false;
-    useReplay.getState().setSelectedFile(file.newPath);
+    if (useReplay.getState().selectedFile !== file.newPath) {
+      useReplay.getState().setSelectedFile(file.newPath);
+    }
     if (!(await waitFor(".diff-view"))) return false;
     // The first hunk row renders through the virtualizer — poll for it.
     return await waitForText(".diff-hunk-row", "@@ -", 5000);
@@ -174,13 +176,18 @@ export async function runSelfTest(): Promise<void> {
     await wait(300);
     return splitRows > 0 && document.querySelectorAll(".diff-line:not(.split)").length > 0;
   });
-  await step("A10 filters: ws + generated chips toggle state", async () => {
-    const before = useReplay.getState().hideWhitespaceOnly;
-    clickByText(".toolbar-actions .chip", "ws");
-    await wait(100);
-    const after = useReplay.getState().hideWhitespaceOnly;
-    useReplay.getState().setSelectedFile(null);
-    return after === !before;
+  await step("A10 stepping a frame opens the first changed file", async () => {
+    const range = useReplay.getState().range;
+    const repo = useReplay.getState().repo;
+    if (!range || !repo) return false;
+    useReplay.getState().setIndex(0);
+    await wait(150);
+    useReplay.getState().setIndex(1);
+    if (!(await waitFor(".file-row", 3000))) return false;
+    const detail = await getCommitDetail(repo.id, range.commits[0].sha, null);
+    if (detail.files.length === 0) return false;
+    const opened = await waitFor(".diff-view, .binary-note, .image-diff", 4000);
+    return useReplay.getState().selectedFile === detail.files[0].newPath && opened;
   });
   await step("A11 body toggle expands the commit message", async () => {
     click(".body-toggle");

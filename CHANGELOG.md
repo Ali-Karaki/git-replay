@@ -15,10 +15,13 @@ versions with [SemVer](https://semver.org/spec/v2.0.0.html).
 - Welcome, Settings, and About follow a VS Code / Cursor workbench
   layout: Get Started columns, a settings editor with a category list,
   and a documentation-style About page.
+- Step view always opens the first changed file in the current commit.
 
 ### Removed
 
 - Overview (change map): the file × commit activity grid.
+- Whitespace-only and generated-file filters. Gitignore and
+  gitattributes already decide what Git reports.
 
 ## [0.1.0] — 2026-08-13
 

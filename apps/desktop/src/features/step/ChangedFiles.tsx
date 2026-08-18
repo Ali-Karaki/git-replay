@@ -1,8 +1,7 @@
-// The changed-files list for the current commit, with status glyphs, rename
-// display, and the generated/whitespace filters.
+// The changed-files list for the current commit, with status glyphs and
+// rename display.
 
-import { FilterIcon } from "../../components/Icons";
-import { basename, dirname, formatCount, isGeneratedPath } from "../../lib/format";
+import { basename, dirname, formatCount } from "../../lib/format";
 import type { CommitDetail, FileChange } from "../../lib/types";
 import { useReplay } from "../../stores/replay";
 
@@ -30,11 +29,6 @@ function FileRow({ file, selected, onSelect }: { file: FileChange; selected: boo
             <span>{name}</span>
           </>
         )}
-        {file.whitespaceOnly && (
-          <span className="ws-tag" title="Whitespace-only change">
-            ws
-          </span>
-        )}
         {file.binary && (
           <span className="ws-tag" title="Binary file">
             bin
@@ -57,55 +51,17 @@ function FileRow({ file, selected, onSelect }: { file: FileChange; selected: boo
 export function ChangedFiles({ detail }: { detail: CommitDetail }) {
   const selectedFile = useReplay((s) => s.selectedFile);
   const setSelectedFile = useReplay((s) => s.setSelectedFile);
-  const hideGenerated = useReplay((s) => s.hideGenerated);
-  const hideWhitespaceOnly = useReplay((s) => s.hideWhitespaceOnly);
-  const set = useReplay.setState;
-
-  let files = detail.files;
-  let hidden = 0;
-  if (hideGenerated || hideWhitespaceOnly) {
-    files = files.filter((f) => {
-      if (hideWhitespaceOnly && f.whitespaceOnly) {
-        hidden++;
-        return false;
-      }
-      if (hideGenerated && (isGeneratedPath(f.newPath) || (f.oldPath && isGeneratedPath(f.oldPath)))) {
-        hidden++;
-        return false;
-      }
-      return true;
-    });
-  }
-
+  const files = detail.files;
   const selectedPath = selectedFile
-    ? (detail.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile)?.newPath ?? null)
+    ? (files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile)?.newPath ?? null)
     : null;
 
   return (
     <div className="changed-files">
       <div className="panel-toolbar">
         <span className="panel-title">
-          {detail.files.length} file{detail.files.length === 1 ? "" : "s"}
-          {hidden > 0 && <span className="dim"> · {hidden} hidden</span>}
+          {files.length} file{files.length === 1 ? "" : "s"}
         </span>
-        <div className="toolbar-actions">
-          <button
-            type="button"
-            className={`chip ${hideWhitespaceOnly ? "on" : ""}`}
-            onClick={() => set({ hideWhitespaceOnly: !hideWhitespaceOnly })}
-            title="Hide whitespace-only changes"
-          >
-            ws
-          </button>
-          <button
-            type="button"
-            className={`chip ${hideGenerated ? "on" : ""}`}
-            onClick={() => set({ hideGenerated: !hideGenerated })}
-            title="Hide generated files and lockfiles"
-          >
-            <FilterIcon size={12} /> generated
-          </button>
-        </div>
       </div>
       <div className="file-list">
         {files.length === 0 ? (

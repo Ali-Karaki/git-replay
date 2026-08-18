@@ -165,11 +165,6 @@ export const CopyIcon = (p: IconProps) => (
     <path d="M10.5 5.5v-2A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
   </Svg>
 );
-export const FilterIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M2 3.5h12L9.5 8.5v4l-3 1.5v-5.5L2 3.5z" />
-  </Svg>
-);
 export const FolderOpenIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M2 6V4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 2H13a1 1 0 0 1 1 1v6.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5V6z" />

@@ -1,11 +1,11 @@
 // Step view: what changed in this commit. Left = changed files, main = commit
-// header + selected file's diff. Context is preserved across frames: the
-// selected file stays selected when the next commit also touches it (spec 12).
-// The synthetic Working Tree frame (spec 35) reuses the same components.
+// header + selected file's diff. Each frame opens the first changed file;
+// File Evolution is the place to follow one path. The synthetic Working Tree
+// frame (spec 35) reuses the same components.
 
 import { useEffect, useMemo } from "react";
 import { ErrorPanel, Skeleton } from "../../components/States";
-import { getCommitDetail, getFileAtCommit, getFileDiff } from "../../lib/dataCaches";
+import { getCommitDetail, getFileDiff } from "../../lib/dataCaches";
 import { isLikelyImage } from "../../lib/format";
 import { api } from "../../lib/ipc";
 import type { CommitDetail } from "../../lib/types";
@@ -35,27 +35,12 @@ export function StepView() {
     return getCommitDetail(repo.id, commit.sha, commit.parents.length > 1 ? mergeParent : null);
   });
 
-  // Preserve the selected file across frames (spec 12): follow renames (the
-  // selection moves to the new path), keep it when this commit touches it,
-  // and otherwise verify it still exists at this frame — clearing only when
-  // it's gone.
+  // Every new frame opens the first changed file. `[` / `]` still cycle
+  // within the commit because this effect keys off loaded detail, not selection.
   useEffect(() => {
-    if (!detail.data || !selectedFile || !repo || !sha) return;
-    const rename = detail.data.files.find((f) => f.oldPath === selectedFile && f.oldPath !== f.newPath);
-    if (rename) {
-      setSelectedFile(rename.newPath);
-      return;
-    }
-    const touched = detail.data.files.some((f) => f.newPath === selectedFile);
-    if (touched) return;
-    let cancelled = false;
-    getFileAtCommit(repo.id, sha, selectedFile).catch(() => {
-      if (!cancelled) setSelectedFile(null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [detail.data, selectedFile, repo, sha, setSelectedFile]);
+    if (detail.loading || !detail.data) return;
+    setSelectedFile(detail.data.files[0]?.newPath ?? null);
+  }, [detail.loading, detail.data, setSelectedFile]);
 
   const fileDiff = useData(
     repo && sha && selectedFile && !isWtFrame && detail.data
@@ -119,9 +104,9 @@ export function StepView() {
           <>
             <CommitHeader detail={detail.data} commitNo={index} />
             <div className="step-content" key={index}>
-              {selectedFile === null ? (
-                <div className="empty-mini">Select a file to see its changes.</div>
-              ) : fileDiff.loading || !fileDiff.data ? (
+              {detail.data.files.length === 0 ? (
+                <div className="empty-mini">No file changes in this commit.</div>
+              ) : selectedFile === null || fileDiff.loading || !fileDiff.data ? (
                 <Skeleton rows={14} />
               ) : fileDiff.error ? (
                 <ErrorPanel error={fileDiff.error} />
@@ -154,6 +139,13 @@ function WorkingTreeStep({ sha }: { sha: string }) {
   const range = useReplay((s) => s.range);
   const wtFrame = useReplay((s) => s.wtFrame);
   const selectedFile = useReplay((s) => s.selectedFile);
+  const setSelectedFile = useReplay((s) => s.setSelectedFile);
+
+  useEffect(() => {
+    if (!wtFrame) return;
+    setSelectedFile(wtFrame.files[0]?.newPath ?? null);
+  }, [wtFrame, setSelectedFile]);
+
   const selectedChange = wtFrame?.files.find((f) => f.newPath === selectedFile || f.oldPath === selectedFile);
   const diff = useData(repo && selectedFile ? `${repo.id}|WORKTREE|${selectedFile}` : null, () => {
     // The key guarantees repo and selectedFile are set whenever the loader runs.
@@ -213,11 +205,9 @@ function WorkingTreeStep({ sha }: { sha: string }) {
           </div>
         </div>
         <div className="step-content">
-          {selectedFile === null ? (
-            <div className="empty-mini">
-              {wtFrame.files.length === 0 ? "The working tree is clean." : "Select a file to see its changes."}
-            </div>
-          ) : diff.loading || !diff.data ? (
+          {wtFrame.files.length === 0 ? (
+            <div className="empty-mini">The working tree is clean.</div>
+          ) : selectedFile === null || diff.loading || !diff.data ? (
             <Skeleton rows={14} />
           ) : diff.error ? (
             <ErrorPanel error={diff.error} />

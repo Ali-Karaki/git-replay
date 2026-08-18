@@ -89,31 +89,3 @@ export function statusLabel(status: string): string {
 export function isLikelyImage(path: string): boolean {
   return /\.(png|jpe?g|gif|webp|bmp|ico|avif)$/i.test(path);
 }
-
-/** Heuristic for generated / noisy files (invariant: never silently hidden). */
-export function isGeneratedPath(path: string): boolean {
-  const name = basename(path).toLowerCase();
-  if (
-    name === "package-lock.json" ||
-    name === "pnpm-lock.yaml" ||
-    name === "yarn.lock" ||
-    name === "cargo.lock" ||
-    name === "composer.lock" ||
-    name === "go.sum" ||
-    name === "poetry.lock" ||
-    name === "gemfile.lock" ||
-    name === "bun.lockb" ||
-    name.endsWith(".min.js") ||
-    name.endsWith(".min.css") ||
-    name.endsWith(".map") ||
-    name.endsWith(".lock") ||
-    name.endsWith(".sum")
-  ) {
-    return true;
-  }
-  return (
-    /(^|\/)(dist|build|out|node_modules|vendor|\.next|\.nuxt|\.turbo|target)\//.test(path) ||
-    /(^|\/)(generated|gen)\//.test(path) ||
-    /\.(pyc|pyo|class|o|a|so|dll|exe|bin|jar|war|wasm|zip|gz|tar)$/i.test(path)
-  );
-}
