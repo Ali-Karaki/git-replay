@@ -29,6 +29,20 @@ pub struct Repo {
     pub path: PathBuf,
 }
 
+/// Spawn a CLI without a console window on Windows. Release builds are
+/// `windows_subsystem = "windows"`, so `git`/`gh` would otherwise flash a
+/// `conhost.exe` per call. `CREATE_NO_WINDOW` still pipes stdout/stderr.
+pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 /// Run git in `repo` and return stdout. Fails on non-zero exit.
 pub fn run_git<S: AsRef<OsStr>>(repo: &Path, args: &[S]) -> Result<Vec<u8>, GitFailure> {
     run_git_full(repo, args, None)
@@ -40,7 +54,7 @@ pub fn run_git_input<S: AsRef<OsStr>>(repo: &Path, args: &[S], input: &[u8]) -> 
 }
 
 fn run_git_full<S: AsRef<OsStr>>(repo: &Path, args: &[S], input: Option<&[u8]>) -> Result<Vec<u8>, GitFailure> {
-    let mut cmd = Command::new("git");
+    let mut cmd = command("git");
     cmd.arg("-C")
         .arg(repo)
         .env("GIT_OPTIONAL_LOCKS", "0")

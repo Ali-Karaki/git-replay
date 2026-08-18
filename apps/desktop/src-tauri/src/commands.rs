@@ -174,7 +174,7 @@ pub async fn ensure_demo_fixture() -> Cmd<Option<String>> {
     {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let script = root.join("scripts").join("make-demo-fixture.sh");
-        let out = std::process::Command::new("sh").arg(&script).output();
+        let out = crate::git::command("sh").arg(&script).output();
         return Ok(out.ok().filter(|o| o.status.success()).and_then(|_| {
             std::fs::canonicalize(root.join("fixtures").join("demo-repo")).ok().map(|p| p.to_string_lossy().into_owned())
         }));
@@ -217,7 +217,7 @@ pub async fn commit_demo_fixture(path: String) -> Cmd<()> {
             ("GIT_COMMITTER_EMAIL", "selftest@git-replay.local"),
         ];
         let git = |args: &[&str]| {
-            std::process::Command::new("git")
+            crate::git::command("git")
                 .arg("-C").arg(&p).envs(envs.clone()).args(args)
                 .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
                 .status().map(|s| s.success()).unwrap_or(false)

@@ -3,11 +3,10 @@
 //! versions via GraphQL), with a plain `git fetch refs/pull/N/head` fallback
 //! for public repositories. Core replay stays fully local after the fetch.
 
-use super::{lossy, run_git, trim_line, Repo};
+use super::{command, lossy, run_git, trim_line, Repo};
 use crate::error::{AppError, ErrorKind};
 use crate::git::history::resolve_replay;
 use crate::git::types::{PrReplay, PrVersion, ReplayRange};
-use std::process::Command;
 
 /// The GitHub slug (owner/repo) parsed from the origin remote, if any.
 pub fn origin_slug(repo: &Repo) -> Option<(String, String)> {
@@ -38,12 +37,12 @@ pub(crate) fn parse_github_slug(url: &str) -> Option<(String, String)> {
 }
 
 fn gh_available() -> bool {
-    Command::new("gh").arg("--version").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
+    command("gh").arg("--version").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
         .status().map(|s| s.success()).unwrap_or(false)
 }
 
 fn gh_json(args: &[&str]) -> Result<serde_json::Value, AppError> {
-    let out = Command::new("gh")
+    let out = command("gh")
         .args(args)
         .env("GH_PROMPT_DISABLED", "1")
         .output()
@@ -102,7 +101,7 @@ pub fn pr_versions(slug: &(String, String), number: u64, head_oid: &str) -> Resu
             }
         }
     }";
-    let out = Command::new("gh")
+    let out = command("gh")
         .args(["api", "graphql", "-f", &format!("query={query}"), "-f", &format!("owner={}", slug.0), "-f", &format!("repo={}", slug.1), "-F", &format!("n={number}")])
         .output()
         .map_err(|e| AppError::io("could not run gh CLI", e))?;

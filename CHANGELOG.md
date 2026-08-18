@@ -23,6 +23,10 @@ versions with [SemVer](https://semver.org/spec/v2.0.0.html).
 - Whitespace-only and generated-file filters. Gitignore and
   gitattributes already decide what Git reports.
 
+### Fixed
+
+- Git CLI calls no longer flash a console window on Windows.
+
 ## [0.1.0] — 2026-08-13
 
 ### Added
