@@ -50,7 +50,7 @@ const STEPS: Array<[string, string]> = [
 
 export function AboutPage() {
   const s = useReplay();
-  const [version, setVersion] = useState("0.1.0");
+  const [version, setVersion] = useState("0.2.0");
   useEffect(() => {
     getVersion()
       .then(setVersion)

@@ -6,6 +6,8 @@ versions with [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-18
+
 ### Added
 
 - Window zoom: Ctrl++ / Ctrl+- / Ctrl+0 (Cmd on macOS) scales the whole app.
