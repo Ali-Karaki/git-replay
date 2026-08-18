@@ -3,7 +3,7 @@
 
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
-import { BranchIcon } from "../../components/Icons";
+import { CloseIcon } from "../../components/Icons";
 import { useReplay } from "../../stores/replay";
 
 const PRINCIPLES: Array<[string, string]> = [
@@ -40,7 +40,7 @@ const STEPS: Array<[string, string]> = [
   ],
   [
     "Follow what matters",
-    "Pick any file and watch only its story — creations, modifications, renames — with File Evolution, or see all activity at once on the Change Map.",
+    "Pick any file and watch only its story — creations, modifications, renames — with File Evolution.",
   ],
   [
     "Replay uncommitted work",
@@ -60,25 +60,26 @@ export function AboutPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>About Git Replay</h1>
-        <button type="button" className="btn" onClick={() => s.setScreen("replay")}>
-          Back
+        <h1>About</h1>
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label="Close"
+          title="Close"
+          onClick={() => s.setScreen("replay")}
+        >
+          <CloseIcon size={14} />
         </button>
       </div>
       <div className="page-body">
         <div className="about-hero">
-          <div className="welcome-mark">
-            <BranchIcon size={26} />
-          </div>
-          <div>
-            <h2>Replay how software evolved.</h2>
-            <p className="dim">
-              Git Replay is a local-first desktop app that turns a repository's history into a timeline you can play. It
-              is a development timelapse player, not a Git client: the product answers{" "}
-              <em>how did this codebase get from state A to state B?</em>
-            </p>
-            <p className="about-version dim">Version {version} · MIT licensed · open source</p>
-          </div>
+          <h2>Replay how software evolved.</h2>
+          <p className="dim">
+            Git Replay is a local-first desktop app that turns a repository's history into a timeline you can play. It
+            is a development timelapse player, not a Git client: the product answers{" "}
+            <em>how did this codebase get from state A to state B?</em>
+          </p>
+          <p className="about-version dim">Version {version} · MIT licensed · open source</p>
         </div>
 
         <section className="about-section">

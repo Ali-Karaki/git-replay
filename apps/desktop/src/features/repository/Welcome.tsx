@@ -2,10 +2,14 @@
 // recent one. Everything stays local — nothing is ever uploaded.
 
 import { open } from "@tauri-apps/plugin-dialog";
-import { BranchIcon, ClockIcon, FolderIcon } from "../../components/Icons";
+import { BranchIcon, ClockIcon, FolderIcon, GearIcon, HelpIcon, PlayIcon } from "../../components/Icons";
 import { ErrorPanel } from "../../components/States";
 import { displayPath } from "../../lib/format";
 import { useReplay } from "../../stores/replay";
+
+function repoName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
 
 export function Welcome() {
   const openRepo = useReplay((s) => s.openRepo);
@@ -31,61 +35,15 @@ export function Welcome() {
 
   return (
     <div className="welcome">
-      <div className="welcome-card">
-        <div className="welcome-mark">
-          <BranchIcon size={26} />
-        </div>
-        <h1>Git Replay</h1>
-        <p className="welcome-tagline">Replay how software evolved — commit by commit.</p>
-        <p className="welcome-hint dim">
-          Open any Git repository, pick a range, and press Play. Nothing ever leaves your machine.
-        </p>
-        <div className="welcome-steps">
-          <div className="welcome-step">
-            <b>1</b>
-            <span>Open any repository</span>
+      <div className="welcome-inner">
+        <div className="welcome-title">
+          <div className="welcome-mark">
+            <BranchIcon size={18} />
           </div>
-          <div className="welcome-step">
-            <b>2</b>
-            <span>Pick what to watch</span>
+          <div>
+            <h1>Git Replay</h1>
+            <p className="welcome-tagline">Replay how software evolved — commit by commit.</p>
           </div>
-          <div className="welcome-step">
-            <b>3</b>
-            <span>Press Play</span>
-          </div>
-        </div>
-        <button type="button" className="btn btn-primary btn-large" onClick={pickAndOpen} disabled={busy}>
-          <FolderIcon size={15} /> {busy ? "Opening…" : "Open repository"}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void useReplay.getState().createDemoRepo()}
-          disabled={busy}
-        >
-          Try the demo <span className="dim">— a 14-commit repository with a merge, renames, and binaries</span>
-        </button>
-        {session && (
-          <button type="button" className="btn" onClick={() => void resumeSession()} disabled={busy}>
-            Resume last replay <span className="dim">({session.repoPath.split(/[\\/]/).pop()})</span>
-          </button>
-        )}
-        <div className="welcome-links">
-          <button type="button" className="btn-ghost" onClick={() => useReplay.setState({ screen: "about" })}>
-            About & how it works
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => useReplay.setState({ screen: "settings" })}>
-            Settings
-          </button>
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => void import("../../lib/selfTest").then((m) => m.runSelfTest())}
-            >
-              Run self-test (dev)
-            </button>
-          )}
         </div>
         {error && (
           <ErrorPanel
@@ -93,18 +51,61 @@ export function Welcome() {
             onRetry={() => set({ error: null, errorDetail: null })}
           />
         )}
-        {recentRepos.length > 0 && (
-          <div className="recent">
-            <div className="recent-title dim">
-              <ClockIcon size={12} /> Recent
-            </div>
-            {recentRepos.map((p) => (
-              <button type="button" key={p} className="recent-row" onClick={() => void openRepo(p)} disabled={busy}>
-                <span className="recent-path">{displayPath(p)}</span>
+        <div className="welcome-split">
+          <div className="welcome-col">
+            <h2>Start</h2>
+            <button type="button" className="welcome-action" onClick={pickAndOpen} disabled={busy}>
+              <FolderIcon size={16} /> {busy ? "Opening…" : "Open repository…"}
+            </button>
+            <button
+              type="button"
+              className="welcome-action"
+              onClick={() => void useReplay.getState().createDemoRepo()}
+              disabled={busy}
+            >
+              <PlayIcon size={16} /> Try the demo
+              <span className="dim">14 commits, merge, renames</span>
+            </button>
+            {session && (
+              <button type="button" className="welcome-action" onClick={() => void resumeSession()} disabled={busy}>
+                <ClockIcon size={16} /> Resume last replay
+                <span className="dim">{repoName(session.repoPath)}</span>
               </button>
-            ))}
+            )}
+            <div className="welcome-links">
+              <button type="button" className="welcome-action" onClick={() => useReplay.setState({ screen: "about" })}>
+                <HelpIcon size={16} /> About & how it works
+              </button>
+              <button
+                type="button"
+                className="welcome-action"
+                onClick={() => useReplay.setState({ screen: "settings" })}
+              >
+                <GearIcon size={16} /> Settings
+              </button>
+              {import.meta.env.DEV && (
+                <button
+                  type="button"
+                  className="welcome-action"
+                  onClick={() => void import("../../lib/selfTest").then((m) => m.runSelfTest())}
+                >
+                  Run self-test (dev)
+                </button>
+              )}
+            </div>
           </div>
-        )}
+          {recentRepos.length > 0 && (
+            <div className="welcome-col">
+              <h2>Recent</h2>
+              {recentRepos.map((p) => (
+                <button type="button" key={p} className="recent-row" onClick={() => void openRepo(p)} disabled={busy}>
+                  <span className="recent-name">{repoName(p)}</span>
+                  <span className="recent-path dim">{displayPath(p)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
